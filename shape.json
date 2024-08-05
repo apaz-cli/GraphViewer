@@ -1,0 +1,17 @@
+{
+  "nodes": [
+    {"id": 0, "x": 0, "y": 0, "label": "Center"},
+    {"id": 1, "x": 100, "y": 100, "label": "Top Right"},
+    {"id": 2, "x": -100, "y": 100, "label": "Top Left"},
+    {"id": 3, "x": -100, "y": -100, "label": "Bottom Left"},
+    {"id": 4, "x": 100, "y": -100, "label": "Bottom Right"}
+  ],
+  "edges": [
+    {"source": 0, "target": 1, "label": "Center to TR"},
+    {"source": 0, "target": 2, "label": "Center to TL"},
+    {"source": 0, "target": 3, "label": "Center to BL"},
+    {"source": 0, "target": 4, "label": "Center to BR"},
+    {"source": 1, "target": 2, "label": "Top Edge"},
+    {"source": 3, "target": 4, "label": "Bottom Edge"}
+  ]
+}

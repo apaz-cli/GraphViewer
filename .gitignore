@@ -1,0 +1,6 @@
+.vscode/**
+lib/**
+lib64/**
+share/**
+pyvenv.cfg
+graph_viewer
