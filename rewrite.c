@@ -8,6 +8,9 @@
 
 #include "cJSON.h"
 
+#define WINDOW_WIDTH 800
+#define WINDOW_HEIGHT 600
+
 #define FPS 60
 #define FRAME_DELAY (1000 / FPS)
 #define MAX_NODES 1000
@@ -179,20 +182,10 @@ void initialize_app(AppState *app, const char *graph_file) {
     app->camera.zoom = 1.0f;
     app->camera.position = (Vec2f){0, 0};
 
-    SDL_DisplayMode dm;
-    if (SDL_GetCurrentDisplayMode(0, &dm) != 0) {
-        fprintf(stderr, "SDL_GetCurrentDisplayMode failed: %s\n", SDL_GetError());
-        exit(1);
-    }
+    app->window_width = WINDOW_WIDTH;
+    app->window_height = WINDOW_HEIGHT;
 
-    app->window_width = dm.w / 2;
-    app->window_height = dm.h / 2;
-
-    app->font = TTF_OpenFont("lemon.ttf", 15);
-    if (!app->font) {
-        fprintf(stderr, "TTF_OpenFont: %s\n", TTF_GetError());
-        exit(1);
-    }
+    app->font = NULL; // We'll initialize the font later if needed
 }
 
 void cleanup_app(AppState *app) {
@@ -211,16 +204,11 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    if (TTF_Init() == -1) {
-        fprintf(stderr, "TTF_Init: %s\n", TTF_GetError());
-        return 1;
-    }
-
     AppState app;
     initialize_app(&app, argv[1]);
 
     SDL_Window *window = SDL_CreateWindow("Graph Viewer", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                          app.window_width, app.window_height, SDL_WINDOW_RESIZABLE);
+                                          app.window_width, app.window_height, SDL_WINDOW_SHOWN);
     if (!window) {
         fprintf(stderr, "Window could not be created! SDL_Error: %s\n", SDL_GetError());
         return 1;
@@ -234,37 +222,22 @@ int main(int argc, char *argv[]) {
 
     SDL_Event event;
     int quit = 0;
-    Uint32 frameStart;
-    int frameTime;
 
     while (!quit) {
-        frameStart = SDL_GetTicks();
-
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
                 quit = 1;
-            } else {
-                handle_input(&event, &app);
             }
         }
 
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
-
-        render_graph(renderer, &app);
-
         SDL_RenderPresent(renderer);
-
-        frameTime = SDL_GetTicks() - frameStart;
-        if (frameTime < FRAME_DELAY) {
-            SDL_Delay(FRAME_DELAY - frameTime);
-        }
     }
 
     cleanup_app(&app);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
-    TTF_Quit();
     SDL_Quit();
 
     return 0;
