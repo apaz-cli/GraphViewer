@@ -15,10 +15,11 @@
 #include "bell_wav.xxd"
 #include "cJSON.h"
 
+// Configuration constants
 #define FPS 60
 #define FRAME_DELAY (1000 / FPS)
 #define MAX_NODES 1000
-#define MAX_LABEL_LENGTH 64
+#define MAX_LABEL_LENGTH 4096
 #define SEARCH_BAR_HEIGHT 30
 #define MAX_SEARCH_LENGTH 4096
 #define RAND_XY_INIT_RANGE 500
@@ -29,63 +30,137 @@
 #define FRUCHTERMAN_REINGOLD_INITIAL_TEMP 10.0
 #define FRUCHTERMAN_REINGOLD_COOLING 0.80
 
-#define SDL_BLACK                                                              \
+// Color definitions
+#define COLOR_MENU_ITEM_1                                                      \
+  (SDL_Color) { 55, 55, 55, 255 }
+#define COLOR_MENU_ITEM_2                                                      \
+  (SDL_Color) { 70, 70, 70, 255 }
+#define COLOR_BLACK                                                            \
   (SDL_Color) { 0, 0, 0, 255 }
-#define SDL_WHITE                                                              \
+#define COLOR_WHITE                                                            \
   (SDL_Color) { 255, 255, 255, 255 }
 
 typedef struct {
   float x, y;
-} Vector2;
+} Vec2f;
 
 typedef struct {
   int id;
   int visible;
-  Vector2 position;
+  Vec2f position;
   char *label;
-} Node;
+} GraphNode;
 
 typedef struct {
   int source;
   int target;
   char *label;
-} Edge;
+} GraphEdge;
 
 typedef struct {
-  Node *nodes;
-  Edge *edges;
+  GraphNode *nodes;
+  GraphEdge *edges;
   int node_count;
   int edge_count;
-} Graph;
+} GraphData;
 
-enum SelectionMode { MODE_SINGLE, MODE_OUTGOING, MODE_INCOMING, MODE_COUNT };
+typedef enum {
+  SELECT_SINGLE,
+  SELECT_REFERENCES,
+  SELECT_REFERENCED_BY,
+  SELECT_REFERENCES_RECURSIVE,
+  SELECT_REFERENCED_BY_RECURSIVE,
+  SELECT_MODE_COUNT
+} NodeSelectionMode;
 
-const char *mode_names[] = {"Single", "Outgoing", "Incoming"};
+typedef struct {
+  float zoom;
+  Vec2f position;
+} Camera;
 
-Graph *graph;
-float zoom = 1.0f;
-Vector2 offset = {0, 0};
-TTF_Font *font_15;
-TTF_Font *font_45;
-int WINDOW_WIDTH;
-int WINDOW_HEIGHT;
-char search_text[MAX_SEARCH_LENGTH] = "";
-int search_cursor = 0;
-int current_mode = MODE_SINGLE;
-char *selected_nodes;
+typedef struct {
+  char text[MAX_SEARCH_LENGTH];
+  int cursor_position;
+} SearchBar;
 
-// Function to initialize a graph
-static inline Graph *create_graph(int node_count, int edge_count) {
-  Graph *graph = (Graph *)malloc(sizeof(Graph));
+typedef struct {
+  GraphData *graph;
+  Camera camera;
+  TTF_Font *font_small;
+  TTF_Font *font_medium;
+  TTF_Font *font_large;
+  int window_width;
+  int window_height;
+  SearchBar search_bar;
+  NodeSelectionMode selection_mode;
+  int *selected_nodes;
+  int right_scroll_position;
+  int right_menu_hovered_item;
+  int left_scroll_position;
+  int left_menu_hovered_item;
+  int visible_nodes_count;
+  int nodes_per_page;
+  Vec2f mouse_position;
+  int filter_referenced;
+  int hovered_node;
+  int hovered_edge;
+} AppState;
+
+// Function declarations
+GraphData *create_graph(int node_count, int edge_count);
+void free_graph(GraphData *graph);
+GraphData *load_graph(const char *filename);
+void apply_force_directed_layout(GraphData *graph);
+void apply_fruchterman_reingold_layout(GraphData *graph);
+void update_node_visibility(AppState *app);
+void cycle_selection_mode(AppState *app);
+void set_node_selection(AppState *app, int node_id);
+void set_edge_selection(AppState *app, int edge_id);
+void render_graph(SDL_Renderer *renderer, AppState *app);
+void render_menus(SDL_Renderer *renderer, AppState *app);
+void render_left_menu(SDL_Renderer *renderer, AppState *app);
+void render_right_menu(SDL_Renderer *renderer, AppState *app);
+void handle_input(SDL_Event *event, AppState *app);
+void initialize_app(AppState *app, const char *graph_file);
+void cleanup_app(AppState *app);
+int run_graph_viewer(const char *graph_file);
+
+// Utility functions
+static inline int get_left_menu_width(int window_width) {
+  return window_width * 0.15;
+}
+
+static inline int get_right_menu_width(int window_width) {
+  return window_width * 0.2;
+}
+
+static inline int get_graph_width(int window_width) {
+  return window_width - get_left_menu_width(window_width) -
+         get_right_menu_width(window_width);
+}
+
+// Implementation of core functions
+GraphData *create_graph(int node_count, int edge_count) {
+  GraphData *graph = (GraphData *)malloc(sizeof(GraphData));
+  if (!graph) {
+    fprintf(stderr, "Failed to allocate memory for graph\n");
+    return NULL;
+  }
   graph->node_count = node_count;
   graph->edge_count = edge_count;
-  graph->nodes = (Node *)malloc(node_count * sizeof(Node));
-  graph->edges = (Edge *)malloc(edge_count * sizeof(Edge));
+  graph->nodes = (GraphNode *)calloc(node_count, sizeof(GraphNode));
+  graph->edges = (GraphEdge *)calloc(edge_count, sizeof(GraphEdge));
+  if (!graph->nodes || !graph->edges) {
+    fprintf(stderr, "Failed to allocate memory for nodes or edges\n");
+    free(graph);
+    return NULL;
+  }
   return graph;
 }
 
-// Function to free a graph
-static inline void free_graph(Graph *graph) {
+void free_graph(GraphData *graph) {
+  if (!graph)
+    return;
   for (int i = 0; i < graph->node_count; i++) {
     free(graph->nodes[i].label);
   }
@@ -97,8 +172,7 @@ static inline void free_graph(Graph *graph) {
   free(graph);
 }
 
-// Function to load graph from JSON file
-static inline Graph *load_graph(const char *filename) {
+GraphData *load_graph(const char *filename) {
   FILE *file = fopen(filename, "r");
   if (!file) {
     printf("Failed to open file: %s\n", filename);
@@ -129,7 +203,7 @@ static inline Graph *load_graph(const char *filename) {
   int node_count = cJSON_GetArraySize(nodes);
   int edge_count = cJSON_GetArraySize(edges);
 
-  Graph *graph = create_graph(node_count, edge_count);
+  GraphData *graph = create_graph(node_count, edge_count);
 
   for (int i = 0; i < node_count; i++) {
     cJSON *node = cJSON_GetArrayItem(nodes, i);
@@ -162,217 +236,21 @@ static inline Graph *load_graph(const char *filename) {
   return graph;
 }
 
-static inline int get_left_menu_width(int window_width) {
-  return window_width * 0.15; // 15% of window width
-}
-
-static inline int get_right_menu_width(int window_width) {
-  return window_width * 0.2; // 20% of window width
-}
-
-static inline int get_graph_width(int window_width) {
-  return window_width - get_left_menu_width(window_width) -
-         get_right_menu_width(window_width);
-}
-
-static inline void render_graph(SDL_Renderer *renderer) {
-  int left_menu_width = get_left_menu_width(WINDOW_WIDTH);
-  int right_menu_width = get_right_menu_width(WINDOW_WIDTH);
-  int graph_width = get_graph_width(WINDOW_WIDTH);
-
-  for (int i = 0; i < graph->edge_count; i++) {
-    Node *source = &graph->nodes[graph->edges[i].source];
-    Node *target = &graph->nodes[graph->edges[i].target];
-
-    if (!source->visible || !target->visible)
-      continue;
-
-    int x1 = (source->position.x + offset.x) * zoom + left_menu_width +
-             (float)graph_width / 2;
-    int y1 = (source->position.y + offset.y) * zoom + (float)WINDOW_HEIGHT / 2;
-    int x2 = (target->position.x + offset.x) * zoom + left_menu_width +
-             (float)graph_width / 2;
-    int y2 = (target->position.y + offset.y) * zoom + (float)WINDOW_HEIGHT / 2;
-
-    lineRGBA(renderer, x1, y1, x2, y2, 200, 200, 200, 255);
-  }
-
-  for (int i = 0; i < graph->node_count; i++) {
-    if (!graph->nodes[i].visible)
-      continue;
-
-    int x = (graph->nodes[i].position.x + offset.x) * zoom + left_menu_width +
-            (float)graph_width / 2;
-    int y = (graph->nodes[i].position.y + offset.y) * zoom +
-            (float)WINDOW_HEIGHT / 2;
-
-    if (selected_nodes && selected_nodes[i]) {
-      filledCircleRGBA(renderer, x, y, 5 * zoom, 255, 0, 0, 255);
-    } else {
-      filledCircleRGBA(renderer, x, y, 5 * zoom, 0, 0, 255, 255);
-    }
-  }
-}
-
-static inline void render_label(SDL_Renderer *renderer, const char *text, int x,
-                                int y, TTF_Font *font, SDL_Color color) {
-
-  SDL_Surface *surface = TTF_RenderText_Solid(font, text, color);
-  SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
-
-  SDL_Rect rect;
-  rect.x = x;
-  rect.y = y;
-  SDL_QueryTexture(texture, NULL, NULL, &rect.w, &rect.h);
-
-  // Calculate the maximum width available for the label
-  int left_menu_width = get_left_menu_width(WINDOW_WIDTH);
-  int graph_width = get_graph_width(WINDOW_WIDTH);
-  int right_begin = left_menu_width + graph_width;
-  int max_width = WINDOW_WIDTH - right_begin - 10;
-
-  if (rect.w > max_width) {
-    // If the label is too wide, clip it
-    SDL_Rect src_rect = {0, 0, max_width, rect.h};
-    rect.w = max_width;
-    SDL_RenderCopy(renderer, texture, &src_rect, &rect);
-  } else {
-    // If the label fits, render it normally
-    SDL_RenderCopy(renderer, texture, NULL, &rect);
-  }
-
-  SDL_FreeSurface(surface);
-  SDL_DestroyTexture(texture);
-}
-
-static inline void render_right_menu(SDL_Renderer *renderer) {
-  int right_menu_width = get_right_menu_width(WINDOW_WIDTH);
-
-  // Render menu background
-  SDL_Rect menu_rect = {WINDOW_WIDTH - right_menu_width, 0, right_menu_width,
-                        WINDOW_HEIGHT};
-  SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
-  SDL_RenderFillRect(renderer, &menu_rect);
-
-  // Render search bar
-  SDL_Rect search_rect = {WINDOW_WIDTH - right_menu_width + 5, 5,
-                          right_menu_width - 10, SEARCH_BAR_HEIGHT};
-  SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-  SDL_RenderFillRect(renderer, &search_rect);
-
-  // Render search text
-  render_label(renderer, search_text, WINDOW_WIDTH - right_menu_width + 10, 10,
-               font_15, SDL_BLACK);
-
-  // Render node list
-  int y_offset = SEARCH_BAR_HEIGHT + 10;
-  for (int i = 0; i < graph->node_count; i++) {
-    if (graph->nodes[i].visible) {
-      char node_text[MAX_LABEL_LENGTH + 10];
-      snprintf(node_text, sizeof(node_text), "%d: %s", graph->nodes[i].id,
-               graph->nodes[i].label);
-      render_label(renderer, node_text, WINDOW_WIDTH - right_menu_width + 10,
-                   y_offset, font_15, SDL_WHITE);
-      y_offset += 20;
-    }
-  }
-}
-
-static inline void filter_nodes() {
-  if (strlen(search_text) == 0) {
-    for (int i = 0; i < graph->node_count; i++) {
-      graph->nodes[i].visible = 1;
-    }
-  } else {
-    for (int i = 0; i < graph->node_count; i++) {
-      char id_str[20];
-      snprintf(id_str, sizeof(id_str), "%d", graph->nodes[i].id);
-
-      graph->nodes[i].visible =
-          (strstr(graph->nodes[i].label, search_text) != NULL) ||
-          (strstr(id_str, search_text) != NULL);
-    }
-  }
-}
-
-static inline void toggle_mode() {
-  current_mode = (current_mode + 1) % MODE_COUNT;
-}
-
-static inline void select_node(int node_id, int alloc) {
-  if (alloc) {
-    free(selected_nodes);
-    selected_nodes = calloc(graph->node_count, sizeof(int));
-    if (selected_nodes == NULL) {
-      printf("Failed to allocate memory for selected nodes\n");
-      exit(1);
-    }
-  }
-
-  switch (current_mode) {
-  case MODE_SINGLE:
-    selected_nodes[node_id] = 1;
-    break;
-  case MODE_OUTGOING:
-    selected_nodes[node_id] = 1;
-    for (int i = 0; i < graph->edge_count; i++) {
-      if (graph->edges[i].source == node_id) {
-        selected_nodes[graph->edges[i].target] = 1;
-      }
-    }
-    break;
-  case MODE_INCOMING:
-    selected_nodes[node_id] = 1;
-    for (int i = 0; i < graph->edge_count; i++) {
-      if (graph->edges[i].target == node_id) {
-        selected_nodes[graph->edges[i].source] = 1;
-      }
-    }
-    break;
-  }
-}
-
-static inline void select_edge(int edge_id) {
-  select_node(graph->edges[edge_id].source, 1);
-  select_node(graph->edges[edge_id].target, 0);
-}
-
-static inline void render_left_menu(SDL_Renderer *renderer) {
-  int left_menu_width = get_left_menu_width(WINDOW_WIDTH);
-
-  // Render left menu background
-  SDL_Rect menu_rect = {0, 0, left_menu_width, WINDOW_HEIGHT};
-  SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
-  SDL_RenderFillRect(renderer, &menu_rect);
-
-  // Render mode button
-  SDL_Rect button_rect = {10, 10, left_menu_width - 20, 30};
-  SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
-  SDL_RenderFillRect(renderer, &button_rect);
-
-  char button_text[20];
-  snprintf(button_text, sizeof(button_text), "Mode: %s",
-           mode_names[current_mode]);
-  render_label(renderer, button_text, 15, 15, font_15, SDL_WHITE);
-}
-
-static inline void apply_force_directed_layout(Graph *graph) {
+void apply_force_directed_layout(GraphData *graph) {
   float width = sqrt(LAYOUT_AREA_MULTIPLIER * graph->node_count);
   float height = width;
   float area = width * height;
   float k = sqrt(area / graph->node_count);
-  float t = width / 10; // Initial temperature
+  float t = width / 10;
 
-  size_t forces_size = graph->node_count * sizeof(float);
-  float *forces_x = malloc(forces_size * 2);
-  float *forces_y = forces_x + graph->node_count;
+  Vec2f *forces = calloc(graph->node_count, sizeof(Vec2f));
+  if (!forces) {
+    fprintf(stderr, "Failed to allocate memory for force calculation\n");
+    return;
+  }
 
   for (int iter = 0; iter < FORCE_ITERATIONS; iter++) {
-    // Reset forces
-    for (int i = 0; i < graph->node_count; i++) {
-      forces_x[i] = 0;
-      forces_y[i] = 0;
-    }
+    memset(forces, 0, graph->node_count * sizeof(Vec2f));
 
     // Calculate repulsive forces
     for (int i = 0; i < graph->node_count; i++) {
@@ -384,10 +262,13 @@ static inline void apply_force_directed_layout(Graph *graph) {
           distance = 0.01;
 
         float force = k * k / distance;
-        forces_x[i] += (dx / distance) * force;
-        forces_y[i] += (dy / distance) * force;
-        forces_x[j] -= (dx / distance) * force;
-        forces_y[j] -= (dy / distance) * force;
+        float fx = dx / distance * force;
+        float fy = dy / distance * force;
+
+        forces[i].x += fx;
+        forces[i].y += fy;
+        forces[j].x -= fx;
+        forces[j].y -= fy;
       }
     }
 
@@ -404,16 +285,19 @@ static inline void apply_force_directed_layout(Graph *graph) {
         distance = 0.01;
 
       float force = (distance * distance) / k;
-      forces_x[source] -= (dx / distance) * force;
-      forces_y[source] -= (dy / distance) * force;
-      forces_x[target] += (dx / distance) * force;
-      forces_y[target] += (dy / distance) * force;
+      float fx = dx / distance * force;
+      float fy = dy / distance * force;
+
+      forces[source].x -= fx;
+      forces[source].y -= fy;
+      forces[target].x += fx;
+      forces[target].y += fy;
     }
 
     // Apply forces
     for (int i = 0; i < graph->node_count; i++) {
-      float dx = forces_x[i];
-      float dy = forces_y[i];
+      float dx = forces[i].x;
+      float dy = forces[i].y;
       float distance = sqrt(dx * dx + dy * dy);
       if (distance > 0) {
         float limiting_distance = fmin(distance, t);
@@ -421,34 +305,36 @@ static inline void apply_force_directed_layout(Graph *graph) {
         graph->nodes[i].position.y += dy / distance * limiting_distance;
       }
 
-      // Keep nodes within bounds
       graph->nodes[i].position.x =
           fmax(0, fmin(width, graph->nodes[i].position.x));
       graph->nodes[i].position.y =
           fmax(0, fmin(height, graph->nodes[i].position.y));
     }
 
-    // Cool temperature
     t *= FORCE_COOLING_FACTOR;
   }
 
-  free(forces_x);
+  free(forces);
 }
 
-static inline void fruchterman_reingold_layout(Graph *graph) {
+void apply_fruchterman_reingold_layout(GraphData *graph) {
   int width = 1000;
   int height = 1000;
   float area = width * height * LAYOUT_AREA_MULTIPLIER;
   float k = sqrt(area / graph->node_count);
   float t = FRUCHTERMAN_REINGOLD_INITIAL_TEMP;
 
-  Vector2 *displacement = malloc(graph->node_count * sizeof(Vector2));
+  Vec2f *displacement = calloc(graph->node_count, sizeof(Vec2f));
+  if (!displacement) {
+    fprintf(stderr, "Failed to allocate memory for displacement calculation\n");
+    return;
+  }
 
   for (int iter = 0; iter < FORCE_ITERATIONS; iter++) {
+    memset(displacement, 0, graph->node_count * sizeof(Vec2f));
+
     // Calculate repulsive forces
     for (int i = 0; i < graph->node_count; i++) {
-      displacement[i].x = 0;
-      displacement[i].y = 0;
       for (int j = 0; j < graph->node_count; j++) {
         if (i != j) {
           float dx = graph->nodes[i].position.x - graph->nodes[j].position.x;
@@ -479,7 +365,7 @@ static inline void fruchterman_reingold_layout(Graph *graph) {
       }
     }
 
-    // Apply displacement with temperature
+    // Apply displacement
     for (int i = 0; i < graph->node_count; i++) {
       float disp_length = sqrt(displacement[i].x * displacement[i].x +
                                displacement[i].y * displacement[i].y);
@@ -491,7 +377,6 @@ static inline void fruchterman_reingold_layout(Graph *graph) {
             displacement[i].y / disp_length * capped_disp_length;
       }
 
-      // Keep nodes within the frame
       graph->nodes[i].position.x =
           fmin((float)width / 2,
                fmax(-(float)width / 2, graph->nodes[i].position.x));
@@ -500,272 +385,916 @@ static inline void fruchterman_reingold_layout(Graph *graph) {
                fmax(-(float)height / 2, graph->nodes[i].position.y));
     }
 
-    // Cool down
     t *= FRUCHTERMAN_REINGOLD_COOLING;
   }
 
   free(displacement);
 }
 
-/* MAIN */
+void update_node_visibility(AppState *app) {
+  app->visible_nodes_count = 0;
+  for (int i = 0; i < app->graph->node_count; i++) {
+    if (strlen(app->search_bar.text) == 0) {
+      app->graph->nodes[i].visible =
+          !app->filter_referenced || app->selected_nodes[i];
+    } else {
+      char id_str[20];
+      snprintf(id_str, sizeof(id_str), "%d", app->graph->nodes[i].id);
+      app->graph->nodes[i].visible =
+          ((strstr(app->graph->nodes[i].label, app->search_bar.text) != NULL) ||
+           (strstr(id_str, app->search_bar.text) != NULL)) &&
+          (!app->filter_referenced || app->selected_nodes[i]);
+    }
+    if (app->graph->nodes[i].visible) {
+      app->visible_nodes_count++;
+    }
+  }
+}
 
-int main(int argc, char *argv[]) {
-  if (argc < 2) {
-    printf("Usage: %s <graph_file.json>\n", argv[0]);
-    return 1;
+void cycle_selection_mode(AppState *app) {
+  app->selection_mode = (app->selection_mode + 1) % SELECT_MODE_COUNT;
+}
+
+void select_references_recursive(AppState *app, int node_id) {
+  for (int i = 0; i < app->graph->edge_count; i++) {
+    if (app->graph->edges[i].source == node_id &&
+        !app->selected_nodes[app->graph->edges[i].target]) {
+      app->selected_nodes[app->graph->edges[i].target] = 1;
+      select_references_recursive(app, app->graph->edges[i].target);
+    }
+  }
+}
+
+void select_referenced_by_recursive(AppState *app, int node_id) {
+  for (int i = 0; i < app->graph->edge_count; i++) {
+    if (app->graph->edges[i].target == node_id &&
+        !app->selected_nodes[app->graph->edges[i].source]) {
+      app->selected_nodes[app->graph->edges[i].source] = 1;
+      select_referenced_by_recursive(app, app->graph->edges[i].source);
+    }
+  }
+}
+
+void set_node_selection(AppState *app, int node_id) {
+  memset(app->selected_nodes, 0, app->graph->node_count * sizeof(int));
+
+  switch (app->selection_mode) {
+  case SELECT_SINGLE:
+    app->selected_nodes[node_id] = 1;
+    break;
+  case SELECT_REFERENCES:
+    app->selected_nodes[node_id] = 1;
+    for (int i = 0; i < app->graph->edge_count; i++) {
+      if (app->graph->edges[i].source == node_id) {
+        app->selected_nodes[app->graph->edges[i].target] = 1;
+      }
+    }
+    break;
+  case SELECT_REFERENCED_BY:
+    app->selected_nodes[node_id] = 1;
+    for (int i = 0; i < app->graph->edge_count; i++) {
+      if (app->graph->edges[i].target == node_id) {
+        app->selected_nodes[app->graph->edges[i].source] = 1;
+      }
+    }
+    break;
+  case SELECT_REFERENCES_RECURSIVE:
+    app->selected_nodes[node_id] = 1;
+    select_references_recursive(app, node_id);
+    break;
+  case SELECT_REFERENCED_BY_RECURSIVE:
+    app->selected_nodes[node_id] = 1;
+    select_referenced_by_recursive(app, node_id);
+    break;
+  case SELECT_MODE_COUNT:
+    printf("This should never happen.\n");
+    exit(1);
+  }
+  update_node_visibility(app);
+}
+
+void set_edge_selection(AppState *app, int edge_id) {
+  memset(app->selected_nodes, 0, app->graph->node_count * sizeof(int));
+  app->selected_nodes[app->graph->edges[edge_id].source] = 1;
+  app->selected_nodes[app->graph->edges[edge_id].target] = 1;
+  update_node_visibility(app);
+}
+
+void render_label_background(SDL_Renderer *renderer, int x, int y, int width,
+                             int height) {
+  SDL_Rect bg_rect = {x - 2, y - 2, width + 4, height + 4};
+  SDL_SetRenderDrawColor(renderer, 0, 0, 0, 200);
+  SDL_RenderFillRect(renderer, &bg_rect);
+}
+
+void render_hover_label(SDL_Renderer *renderer, AppState *app,
+                        const char *label, int x, int y) {
+  if (label == NULL || strlen(label) == 0) {
+    return;
   }
 
-  graph = load_graph(argv[1]);
-  selected_nodes = calloc(graph->node_count, sizeof(int));
+  int max_width = 300;
+  SDL_Surface *text_surface = TTF_RenderText_Blended_Wrapped(
+      app->font_small, label, COLOR_WHITE, max_width);
+  if (!text_surface) {
+    fprintf(stderr, "Failed to render text: %s\n", TTF_GetError());
+    return;
+  }
 
+  SDL_Texture *text_texture =
+      SDL_CreateTextureFromSurface(renderer, text_surface);
+  if (!text_texture) {
+    fprintf(stderr, "Failed to create texture: %s\n", SDL_GetError());
+    SDL_FreeSurface(text_surface);
+    return;
+  }
+
+  int text_width = text_surface->w;
+  int text_height = text_surface->h;
+
+  // Use cursor position (stored in app->mouse_position)
+  x = app->mouse_position.x;
+  y = app->mouse_position.y;
+
+  // Adjust position to keep label on screen
+  if (x + text_width > app->window_width) {
+    x = app->window_width - text_width - 5;
+  }
+  if (y + text_height > app->window_height) {
+    y = app->window_height - text_height - 5;
+  }
+
+  render_label_background(renderer, x, y, text_width, text_height);
+
+  SDL_Rect text_rect = {x, y, text_width, text_height};
+  SDL_RenderCopy(renderer, text_texture, NULL, &text_rect);
+
+  SDL_FreeSurface(text_surface);
+  SDL_DestroyTexture(text_texture);
+}
+
+void render_graph(SDL_Renderer *renderer, AppState *app) {
+  int left_menu_width = get_left_menu_width(app->window_width);
+  int graph_width = get_graph_width(app->window_width);
+
+  // First pass: Render non-highlighted edges
+  for (int i = 0; i < app->graph->edge_count; i++) {
+    GraphNode *source = &app->graph->nodes[app->graph->edges[i].source];
+    GraphNode *target = &app->graph->nodes[app->graph->edges[i].target];
+
+    if (!source->visible || !target->visible)
+      continue;
+
+    int both_selected = app->selected_nodes[app->graph->edges[i].source] &&
+                        app->selected_nodes[app->graph->edges[i].target];
+
+    if (both_selected)
+      continue; // Skip highlighted edges in this pass
+
+    float x1 =
+        (source->position.x + app->camera.position.x) * app->camera.zoom +
+        left_menu_width + (float)graph_width / 2;
+    float y1 =
+        (source->position.y + app->camera.position.y) * app->camera.zoom +
+        (float)app->window_height / 2;
+    float x2 =
+        (target->position.x + app->camera.position.x) * app->camera.zoom +
+        left_menu_width + (float)graph_width / 2;
+    float y2 =
+        (target->position.y + app->camera.position.y) * app->camera.zoom +
+        (float)app->window_height / 2;
+
+    float angle = atan2(y2 - y1, x2 - x1);
+    float circle_radius = 5 * app->camera.zoom;
+    float x2_adj = x2 - circle_radius * cos(angle);
+    float y2_adj = y2 - circle_radius * sin(angle);
+
+    lineRGBA(renderer, x1, y1, x2_adj, y2_adj, 200, 200, 200, 255);
+
+    float arrow_size = 10 * app->camera.zoom;
+    float x3 = x2_adj - arrow_size * cos(angle - M_PI / 12);
+    float y3 = y2_adj - arrow_size * sin(angle - M_PI / 12);
+    float x4 = x2_adj - arrow_size * cos(angle + M_PI / 12);
+    float y4 = y2_adj - arrow_size * sin(angle + M_PI / 12);
+
+    filledTrigonRGBA(renderer, x2_adj, y2_adj, x3, y3, x4, y4, 200, 200, 200,
+                     255);
+  }
+
+  // Second pass: Render non-highlighted nodes
+  for (int i = 0; i < app->graph->node_count; i++) {
+    if (!app->graph->nodes[i].visible || app->selected_nodes[i])
+      continue;
+
+    int x = (app->graph->nodes[i].position.x + app->camera.position.x) *
+                app->camera.zoom +
+            left_menu_width + (float)graph_width / 2;
+    int y = (app->graph->nodes[i].position.y + app->camera.position.y) *
+                app->camera.zoom +
+            (float)app->window_height / 2;
+
+    filledCircleRGBA(renderer, x, y, 5 * app->camera.zoom, 0, 0, 255, 255);
+  }
+
+  // Third pass: Render highlighted edges
+  for (int i = 0; i < app->graph->edge_count; i++) {
+    GraphNode *source = &app->graph->nodes[app->graph->edges[i].source];
+    GraphNode *target = &app->graph->nodes[app->graph->edges[i].target];
+
+    if (!source->visible || !target->visible)
+      continue;
+
+    int both_selected = app->selected_nodes[app->graph->edges[i].source] &&
+                        app->selected_nodes[app->graph->edges[i].target];
+
+    if (!both_selected)
+      continue; // Skip non-highlighted edges in this pass
+
+    float x1 =
+        (source->position.x + app->camera.position.x) * app->camera.zoom +
+        left_menu_width + (float)graph_width / 2;
+    float y1 =
+        (source->position.y + app->camera.position.y) * app->camera.zoom +
+        (float)app->window_height / 2;
+    float x2 =
+        (target->position.x + app->camera.position.x) * app->camera.zoom +
+        left_menu_width + (float)graph_width / 2;
+    float y2 =
+        (target->position.y + app->camera.position.y) * app->camera.zoom +
+        (float)app->window_height / 2;
+
+    float angle = atan2(y2 - y1, x2 - x1);
+    float circle_radius = 5 * app->camera.zoom;
+    float x2_adj = x2 - circle_radius * cos(angle);
+    float y2_adj = y2 - circle_radius * sin(angle);
+
+    lineRGBA(renderer, x1, y1, x2_adj, y2_adj, 255, 0, 0, 255);
+
+    float arrow_size = 10 * app->camera.zoom;
+    float x3 = x2_adj - arrow_size * cos(angle - M_PI / 12);
+    float y3 = y2_adj - arrow_size * sin(angle - M_PI / 12);
+    float x4 = x2_adj - arrow_size * cos(angle + M_PI / 12);
+    float y4 = y2_adj - arrow_size * sin(angle + M_PI / 12);
+
+    filledTrigonRGBA(renderer, x2_adj, y2_adj, x3, y3, x4, y4, 255, 0, 0, 255);
+  }
+
+  // Fourth pass: Render highlighted nodes
+  for (int i = 0; i < app->graph->node_count; i++) {
+    if (!app->graph->nodes[i].visible || !app->selected_nodes[i])
+      continue;
+
+    int x = (app->graph->nodes[i].position.x + app->camera.position.x) *
+                app->camera.zoom +
+            left_menu_width + (float)graph_width / 2;
+    int y = (app->graph->nodes[i].position.y + app->camera.position.y) *
+                app->camera.zoom +
+            (float)app->window_height / 2;
+
+    filledCircleRGBA(renderer, x, y, 5 * app->camera.zoom, 255, 0, 0, 255);
+  }
+
+  // Final pass: Render hover labels
+  if (app->hovered_node != -1) {
+    int x = (app->graph->nodes[app->hovered_node].position.x +
+             app->camera.position.x) *
+                app->camera.zoom +
+            left_menu_width + (float)graph_width / 2;
+    int y = (app->graph->nodes[app->hovered_node].position.y +
+             app->camera.position.y) *
+                app->camera.zoom +
+            (float)app->window_height / 2;
+    render_hover_label(renderer, app,
+                       app->graph->nodes[app->hovered_node].label, x + 10,
+                       y - 20);
+  } else if (app->hovered_edge != -1) {
+    GraphNode *source =
+        &app->graph->nodes[app->graph->edges[app->hovered_edge].source];
+    GraphNode *target =
+        &app->graph->nodes[app->graph->edges[app->hovered_edge].target];
+
+    float x1 =
+        (source->position.x + app->camera.position.x) * app->camera.zoom +
+        left_menu_width + (float)graph_width / 2;
+    float y1 =
+        (source->position.y + app->camera.position.y) * app->camera.zoom +
+        (float)app->window_height / 2;
+    float x2 =
+        (target->position.x + app->camera.position.x) * app->camera.zoom +
+        left_menu_width + (float)graph_width / 2;
+    float y2 =
+        (target->position.y + app->camera.position.y) * app->camera.zoom +
+        (float)app->window_height / 2;
+
+    int label_x = (x1 + x2) / 2;
+    int label_y = (y1 + y2) / 2;
+    render_hover_label(renderer, app,
+                       app->graph->edges[app->hovered_edge].label, label_x,
+                       label_y);
+  }
+}
+
+void render_label(SDL_Renderer *renderer, const char *text, int x, int y,
+                  TTF_Font *font, SDL_Color color, int max_width) {
+  SDL_Surface *surface = TTF_RenderText_Solid(font, text, color);
+  SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
+
+  SDL_Rect rect;
+  rect.x = x;
+  rect.y = y;
+  SDL_QueryTexture(texture, NULL, NULL, &rect.w, &rect.h);
+
+  if (rect.w > max_width) {
+    SDL_Rect src_rect = {0, 0, max_width, rect.h};
+    rect.w = max_width;
+    SDL_RenderCopy(renderer, texture, &src_rect, &rect);
+  } else {
+    SDL_RenderCopy(renderer, texture, NULL, &rect);
+  }
+
+  SDL_FreeSurface(surface);
+  SDL_DestroyTexture(texture);
+}
+
+void render_scrollbar(SDL_Renderer *renderer, int x, int y, int height,
+                      int total_items, int visible_items, int scroll_position) {
+  int scrollbar_height = (visible_items * height) / total_items;
+  int scrollbar_y = y + (scroll_position * (height - scrollbar_height)) /
+                            (total_items - visible_items);
+
+  SDL_Rect scrollbar_bg = {x, y, 15, height};
+  SDL_SetRenderDrawColor(renderer, 70, 70, 70, 255);
+  SDL_RenderFillRect(renderer, &scrollbar_bg);
+
+  SDL_Rect scrollbar_handle = {x + 2, scrollbar_y, 11, scrollbar_height};
+  SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
+  SDL_RenderFillRect(renderer, &scrollbar_handle);
+}
+
+void handle_menu_scroll(int *scroll_position, int wheel_y, int total_items,
+                        int visible_items, int is_page_scroll) {
+  int scroll_amount = is_page_scroll
+                          ? visible_items
+                          : 5; // Scroll 5 items at a time for mouse wheel
+  *scroll_position -= wheel_y * scroll_amount;
+  *scroll_position =
+      fmax(0, fmin(*scroll_position, total_items - visible_items));
+}
+
+int is_mouse_over_menu_item(int mouseX, int mouseY, int itemY, int menuX,
+                            int menuWidth, int itemHeight) {
+  return mouseX >= menuX && mouseX <= menuX + menuWidth && mouseY >= itemY &&
+         mouseY < itemY + itemHeight;
+}
+
+void render_menu_item(SDL_Renderer *renderer, const char *text, int x, int y,
+                      int width, int height, SDL_Color bg_color,
+                      SDL_Color text_color, TTF_Font *font) {
+  SDL_Rect bg_rect = {x, y, width, height};
+  SDL_SetRenderDrawColor(renderer, bg_color.r, bg_color.g, bg_color.b,
+                         bg_color.a);
+  SDL_RenderFillRect(renderer, &bg_rect);
+  render_label(renderer, text, x + 5, y + (height - TTF_FontHeight(font)) / 2,
+               font, text_color, width - 10);
+}
+
+void render_left_menu(SDL_Renderer *renderer, AppState *app) {
+  int left_menu_width = get_left_menu_width(app->window_width);
+  int detail_area_height = app->window_height * 0.4;
+  int scrollbar_width = 15;
+  int title_height = 50;
+  int padding = 10;
+  int button_height = 30;
+
+  // Render left menu background
+  SDL_Rect left_menu_rect = {0, 0, left_menu_width, app->window_height};
+  SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+  SDL_RenderFillRect(renderer, &left_menu_rect);
+
+  // Render mode button
+  SDL_Rect mode_button_rect = {10, 10, left_menu_width - 20, button_height};
+  SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+  SDL_RenderFillRect(renderer, &mode_button_rect);
+
+  const char *mode_names[] = {
+      "Single",
+      "References",
+      "Referenced By",
+      "References (Recursive)",
+      "Referenced By (Recursive)",
+  };
+  char mode_text[50];
+  snprintf(mode_text, sizeof(mode_text), "Mode: %s",
+           mode_names[app->selection_mode]);
+  render_label(renderer, mode_text, 15, 15, app->font_small, COLOR_WHITE,
+               left_menu_width - 30);
+
+  // Render filter referenced button
+  SDL_Rect filter_button_rect = {10, 50, left_menu_width - 20, button_height};
+  SDL_SetRenderDrawColor(renderer, app->filter_referenced ? 150 : 100, 100, 100,
+                         255);
+  SDL_RenderFillRect(renderer, &filter_button_rect);
+  render_label(renderer, "Show only selected", 15, 55, app->font_small,
+               COLOR_WHITE, left_menu_width - 30);
+
+  // Render detail area
+  SDL_Rect detail_rect = {0, app->window_height - detail_area_height,
+                          left_menu_width, detail_area_height};
+  SDL_SetRenderDrawColor(renderer, 70, 70, 70, 255);
+  SDL_RenderFillRect(renderer, &detail_rect);
+
+  // Render "Selected Objects" title
+  SDL_Rect title_bg = {0, app->window_height - detail_area_height,
+                       left_menu_width, title_height};
+  SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+  SDL_RenderFillRect(renderer, &title_bg);
+  render_label(renderer, "Selected Objects", padding,
+               app->window_height - detail_area_height + padding,
+               app->font_small, COLOR_WHITE, left_menu_width - 2 * padding);
+
+  // Render selected nodes details
+  int y_offset = app->window_height - detail_area_height + title_height;
+  int total_content_height = 0;
+  int selected_count = 0;
+  int item_height = 20;
+
+  for (int i = 0; i < app->graph->node_count; i++) {
+    if (app->selected_nodes[i] && app->graph->nodes[i].visible) {
+      selected_count++;
+      char detail_text[MAX_LABEL_LENGTH * 2];
+      snprintf(detail_text, sizeof(detail_text), "Node %d: %s",
+               app->graph->nodes[i].id, app->graph->nodes[i].label);
+
+      SDL_Surface *text_surface = TTF_RenderText_Blended_Wrapped(
+          app->font_small, detail_text, COLOR_WHITE,
+          left_menu_width - 2 * padding - scrollbar_width);
+      total_content_height += text_surface->h + padding;
+      SDL_FreeSurface(text_surface);
+    }
+  }
+
+  // Render scrollbar if necessary
+  int scroll_area_height = detail_area_height - title_height;
+  if (total_content_height > scroll_area_height) {
+    render_scrollbar(renderer, left_menu_width - scrollbar_width, y_offset,
+                     scroll_area_height, total_content_height,
+                     scroll_area_height, app->left_scroll_position);
+  }
+
+  // Render visible content
+  SDL_Rect content_area = {padding, y_offset,
+                           left_menu_width - 2 * padding - scrollbar_width,
+                           scroll_area_height};
+  SDL_RenderSetViewport(renderer, &content_area);
+
+  y_offset = -app->left_scroll_position;
+  for (int i = 0; i < app->graph->node_count; i++) {
+    if (app->selected_nodes[i] && app->graph->nodes[i].visible) {
+      char detail_text[MAX_LABEL_LENGTH * 2];
+      snprintf(detail_text, sizeof(detail_text), "Node %d: %s",
+               app->graph->nodes[i].id, app->graph->nodes[i].label);
+
+      SDL_Color bg_color =
+          (selected_count % 2 == 0) ? COLOR_MENU_ITEM_1 : COLOR_MENU_ITEM_2;
+      render_menu_item(renderer, detail_text, 0, y_offset, content_area.w,
+                       item_height, bg_color, COLOR_WHITE, app->font_small);
+
+      y_offset += item_height;
+      selected_count++;
+    }
+  }
+
+  SDL_RenderSetViewport(renderer, NULL);
+}
+
+void render_right_menu(SDL_Renderer *renderer, AppState *app) {
+  int right_menu_width = get_right_menu_width(app->window_width);
+  int right_menu_x = app->window_width - right_menu_width;
+  int scrollbar_width = 15;
+  int search_icon_size = SEARCH_BAR_HEIGHT;
+
+  // Render right menu background
+  SDL_Rect menu_rect = {right_menu_x, 0, right_menu_width, app->window_height};
+  SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+  SDL_RenderFillRect(renderer, &menu_rect);
+
+  // Render search box
+  SDL_Rect search_rect = {right_menu_x + 5, 5,
+                          right_menu_width - 10 - search_icon_size -
+                              scrollbar_width,
+                          SEARCH_BAR_HEIGHT};
+  SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+  SDL_RenderFillRect(renderer, &search_rect);
+
+  render_label(renderer, app->search_bar.text, right_menu_x + 10, 10,
+               app->font_small, COLOR_BLACK,
+               right_menu_width - 20 - search_icon_size - scrollbar_width);
+
+  // Render search icon
+  SDL_Rect search_icon_rect = {app->window_width - scrollbar_width -
+                                   search_icon_size,
+                               5, search_icon_size, search_icon_size};
+  SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+  SDL_RenderFillRect(renderer, &search_icon_rect);
+
+  // Draw a simple magnifying glass icon
+  int icon_center_x = search_icon_rect.x + search_icon_size / 2;
+  int icon_center_y = search_icon_rect.y + search_icon_size / 2;
+  int circle_radius = search_icon_size / 3;
+  circleRGBA(renderer, icon_center_x, icon_center_y, circle_radius, 100, 100,
+             100, 255);
+  thickLineRGBA(renderer, icon_center_x + circle_radius - 2,
+                icon_center_y + circle_radius - 2,
+                icon_center_x + search_icon_size / 2 - 2,
+                icon_center_y + search_icon_size / 2 - 2, 3, 100, 100, 100,
+                255);
+
+  // Render node list
+  int y_offset = SEARCH_BAR_HEIGHT + 10;
+  int nodes_rendered = 0;
+  int item_height = 20;
+
+  // Calculate total content height
+  int total_content_height = app->visible_nodes_count * item_height;
+
+  // Render scrollbar
+  int scroll_area_height = app->window_height - SEARCH_BAR_HEIGHT - 20;
+  if (total_content_height > scroll_area_height) {
+    render_scrollbar(renderer, app->window_width - scrollbar_width,
+                     SEARCH_BAR_HEIGHT + 10, scroll_area_height,
+                     total_content_height, scroll_area_height,
+                     app->right_scroll_position);
+  }
+
+  // Render visible content
+  SDL_Rect content_area = {right_menu_x, y_offset,
+                           right_menu_width - scrollbar_width,
+                           scroll_area_height};
+  SDL_RenderSetViewport(renderer, &content_area);
+
+  y_offset = -app->right_scroll_position;
+  for (int i = 0; i < app->graph->node_count; i++) {
+    if (app->graph->nodes[i].visible) {
+      char node_text[MAX_LABEL_LENGTH + 10];
+      snprintf(node_text, sizeof(node_text), "%d: %s", app->graph->nodes[i].id,
+               app->graph->nodes[i].label);
+
+      SDL_Color bg_color =
+          (nodes_rendered % 2 == 0) ? COLOR_MENU_ITEM_1 : COLOR_MENU_ITEM_2;
+
+      // Highlight hovered item
+      if (nodes_rendered == app->right_menu_hovered_item) {
+        bg_color = (SDL_Color){100, 100, 100, 255}; // Lighter color for hover
+      }
+
+      render_menu_item(renderer, node_text, 0, y_offset, content_area.w,
+                       item_height, bg_color, COLOR_WHITE, app->font_small);
+
+      y_offset += item_height;
+      nodes_rendered++;
+    }
+  }
+
+  SDL_RenderSetViewport(renderer, NULL);
+}
+
+void handle_input(SDL_Event *event, AppState *app) {
+  int left_menu_width = get_left_menu_width(app->window_width);
+  int right_menu_width = get_right_menu_width(app->window_width);
+  int graph_width = get_graph_width(app->window_width);
+
+  switch (event->type) {
+  case SDL_MOUSEMOTION:
+    app->mouse_position.x = event->motion.x;
+    app->mouse_position.y = event->motion.y;
+
+    // Reset hover states
+    app->hovered_node = -1;
+    app->hovered_edge = -1;
+    app->right_menu_hovered_item = -1;
+
+    int right_menu_x = app->window_width - right_menu_width;
+
+    // Check for right menu hover
+    if (app->mouse_position.x >= right_menu_x) {
+      int y_offset = SEARCH_BAR_HEIGHT + 10 - app->right_scroll_position;
+      int item_height = 20;
+      int nodes_rendered = 0;
+      for (int i = 0; i < app->graph->node_count; i++) {
+        if (app->graph->nodes[i].visible) {
+          if (app->mouse_position.y >= y_offset &&
+              app->mouse_position.y < y_offset + item_height) {
+            app->right_menu_hovered_item = nodes_rendered;
+            break;
+          }
+          y_offset += item_height;
+          nodes_rendered++;
+        }
+      }
+    }
+
+    // Check for node hover (in graph area)
+    if (app->right_menu_hovered_item == -1 &&
+        app->mouse_position.x >= left_menu_width &&
+        app->mouse_position.x < right_menu_x) {
+      for (int i = 0; i < app->graph->node_count; i++) {
+        if (!app->graph->nodes[i].visible)
+          continue;
+
+        int nx = (app->graph->nodes[i].position.x + app->camera.position.x) *
+                     app->camera.zoom +
+                 left_menu_width + (float)graph_width / 2;
+        int ny = (app->graph->nodes[i].position.y + app->camera.position.y) *
+                     app->camera.zoom +
+                 (float)app->window_height / 2;
+
+        if (sqrt(pow(app->mouse_position.x - nx, 2) +
+                 pow(app->mouse_position.y - ny, 2)) <= 5 * app->camera.zoom) {
+          app->hovered_node = i;
+          break;
+        }
+      }
+    }
+
+    // Check for edge hover (in graph area)
+    if (app->hovered_node == -1 && app->right_menu_hovered_item == -1 &&
+        app->mouse_position.x >= left_menu_width &&
+        app->mouse_position.x < right_menu_x) {
+      for (int i = 0; i < app->graph->edge_count; i++) {
+        GraphNode *source = &app->graph->nodes[app->graph->edges[i].source];
+        GraphNode *target = &app->graph->nodes[app->graph->edges[i].target];
+
+        if (!source->visible || !target->visible)
+          continue;
+
+        int x1 =
+            (source->position.x + app->camera.position.x) * app->camera.zoom +
+            left_menu_width + (float)graph_width / 2;
+        int y1 =
+            (source->position.y + app->camera.position.y) * app->camera.zoom +
+            (float)app->window_height / 2;
+        int x2 =
+            (target->position.x + app->camera.position.x) * app->camera.zoom +
+            left_menu_width + (float)graph_width / 2;
+        int y2 =
+            (target->position.y + app->camera.position.y) * app->camera.zoom +
+            (float)app->window_height / 2;
+
+        float d = fabs((y2 - y1) * app->mouse_position.x -
+                       (x2 - x1) * app->mouse_position.y + x2 * y1 - y2 * x1) /
+                  sqrt(pow(y2 - y1, 2) + pow(x2 - x1, 2));
+
+        if (d <= 5 * app->camera.zoom &&
+            app->mouse_position.x >= fmin(x1, x2) - 5 * app->camera.zoom &&
+            app->mouse_position.x <= fmax(x1, x2) + 5 * app->camera.zoom &&
+            app->mouse_position.y >= fmin(y1, y2) - 5 * app->camera.zoom &&
+            app->mouse_position.y <= fmax(y1, y2) + 5 * app->camera.zoom) {
+          app->hovered_edge = i;
+          break;
+        }
+      }
+    }
+
+    if (event->motion.state & SDL_BUTTON_LMASK) {
+      app->camera.position.x += event->motion.xrel / app->camera.zoom;
+      app->camera.position.y += event->motion.yrel / app->camera.zoom;
+    }
+    break;
+
+  case SDL_MOUSEWHEEL:
+    if (app->mouse_position.x > app->window_width - right_menu_width) {
+      handle_menu_scroll(&app->right_scroll_position, event->wheel.y,
+                         app->visible_nodes_count, app->nodes_per_page, 0);
+    } else if (app->mouse_position.x < left_menu_width &&
+               app->mouse_position.y >
+                   app->window_height - app->window_height * 0.4) {
+      handle_menu_scroll(&app->left_scroll_position, event->wheel.y,
+                         app->visible_nodes_count, app->nodes_per_page, 0);
+    } else {
+      app->camera.zoom *= (event->wheel.y > 0) ? 1.1f : 0.9f;
+    }
+    break;
+
+  case SDL_MOUSEBUTTONDOWN:
+    if (event->button.button == SDL_BUTTON_LEFT) {
+      int x = event->button.x;
+      int y = event->button.y;
+
+      if (x >= 10 && x <= left_menu_width - 10 && y >= 10 && y <= 40) {
+        cycle_selection_mode(app);
+      } else if (x >= 10 && x <= left_menu_width - 10 && y >= 50 && y <= 80) {
+        app->filter_referenced = !app->filter_referenced;
+        update_node_visibility(app);
+      } else if (x >= app->window_width - right_menu_width ||
+                 x < left_menu_width) {
+        // Clicking in the right menu or left menu
+        int menu_x = (x >= app->window_width - right_menu_width)
+                         ? app->window_width - right_menu_width
+                         : 0;
+        int menu_width = (x >= app->window_width - right_menu_width)
+                             ? right_menu_width
+                             : left_menu_width;
+        int scroll_position = (x >= app->window_width - right_menu_width)
+                                  ? app->right_scroll_position
+                                  : app->left_scroll_position;
+        int y_offset = SEARCH_BAR_HEIGHT + 10 - scroll_position;
+        int nodes_rendered = 0;
+        for (int i = 0; i < app->graph->node_count; i++) {
+          if (app->graph->nodes[i].visible &&
+              ((x >= app->window_width - right_menu_width) ||
+               app->selected_nodes[i])) {
+            if (y >= y_offset && y < y_offset + 20) {
+              set_node_selection(app, i);
+              break;
+            }
+            y_offset += 20;
+            nodes_rendered++;
+          }
+        }
+      } else {
+        // Clicking in the graph area
+        if (app->hovered_node != -1) {
+          set_node_selection(app, app->hovered_node);
+        } else if (app->hovered_edge != -1) {
+          set_edge_selection(app, app->hovered_edge);
+        }
+      }
+    }
+    break;
+
+  case SDL_TEXTINPUT:
+    if (strlen(app->search_bar.text) < MAX_SEARCH_LENGTH - 1) {
+      strcat(app->search_bar.text, event->text.text);
+      update_node_visibility(app);
+    }
+    break;
+
+  case SDL_KEYDOWN:
+    switch (event->key.keysym.sym) {
+    case SDLK_BACKSPACE:
+      if (strlen(app->search_bar.text) > 0) {
+        app->search_bar.text[strlen(app->search_bar.text) - 1] = '\0';
+        update_node_visibility(app);
+      }
+      break;
+    case SDLK_PAGEUP:
+      if (app->mouse_position.x > app->window_width - right_menu_width) {
+        handle_menu_scroll(&app->right_scroll_position, 1,
+                           app->visible_nodes_count, app->nodes_per_page, 1);
+      } else if (app->mouse_position.x < left_menu_width &&
+                 app->mouse_position.y >
+                     app->window_height - app->window_height * 0.4) {
+        handle_menu_scroll(&app->left_scroll_position, 1,
+                           app->visible_nodes_count, app->nodes_per_page, 1);
+      }
+      break;
+    case SDLK_PAGEDOWN:
+      if (app->mouse_position.x > app->window_width - right_menu_width) {
+        handle_menu_scroll(&app->right_scroll_position, -1,
+                           app->visible_nodes_count, app->nodes_per_page, 1);
+      } else if (app->mouse_position.x < left_menu_width &&
+                 app->mouse_position.y >
+                     app->window_height - app->window_height * 0.4) {
+        handle_menu_scroll(&app->left_scroll_position, -1,
+                           app->visible_nodes_count, app->nodes_per_page, 1);
+      }
+      break;
+    }
+    break;
+
+  case SDL_WINDOWEVENT:
+    if (event->window.event == SDL_WINDOWEVENT_RESIZED) {
+      app->window_width = event->window.data1;
+      app->window_height = event->window.data2;
+      app->nodes_per_page = (app->window_height - SEARCH_BAR_HEIGHT - 20) / 20;
+    }
+    break;
+  }
+}
+
+void initialize_app(AppState *app, const char *graph_file) {
+  app->graph = load_graph(graph_file);
+  if (!app->graph) {
+    fprintf(stderr, "Failed to load graph\n");
+    exit(1);
+  }
+
+  app->camera.zoom = 1.0f;
+  app->camera.position = (Vec2f){0, 0};
+
+  SDL_DisplayMode dm;
+  if (SDL_GetCurrentDisplayMode(0, &dm) != 0) {
+    fprintf(stderr, "SDL_GetCurrentDisplayMode failed: %s\n", SDL_GetError());
+    exit(1);
+  }
+
+  app->window_width = dm.w / 2;
+  app->window_height = dm.h / 2;
+  app->nodes_per_page = (app->window_height - SEARCH_BAR_HEIGHT - 20) / 20;
+
+  app->selected_nodes = calloc(app->graph->node_count, sizeof(int));
+  if (!app->selected_nodes) {
+    fprintf(stderr, "Failed to allocate memory for selected nodes\n");
+    exit(1);
+  }
+
+  app->selection_mode = SELECT_SINGLE;
+  app->right_scroll_position = 0;
+  app->left_scroll_position = 0;
+  app->visible_nodes_count = app->graph->node_count;
+  app->mouse_position = (Vec2f){0, 0};
+  app->filter_referenced = 0;
+
+  app->hovered_edge = -1;
+  app->hovered_node = -1;
+
+  app->font_small = TTF_OpenFont("lemon.ttf", 15);
+  app->font_medium = TTF_OpenFont("lemon.ttf", 30);
+  app->font_large = TTF_OpenFont("lemon.ttf", 45);
+  if (!app->font_small || !app->font_medium || !app->font_large) {
+    fprintf(stderr, "TTF_OpenFont: %s\n", TTF_GetError());
+    exit(1);
+  }
+
+  memset(app->search_bar.text, 0, MAX_SEARCH_LENGTH);
+}
+
+void cleanup_app(AppState *app) {
+  free_graph(app->graph);
+  free(app->selected_nodes);
+  TTF_CloseFont(app->font_small);
+  TTF_CloseFont(app->font_medium);
+  TTF_CloseFont(app->font_large);
+}
+
+int run_graph_viewer(const char *graph_file) {
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
-    printf("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
+    fprintf(stderr, "SDL could not initialize! SDL_Error: %s\n",
+            SDL_GetError());
     return 1;
   }
 
   if (TTF_Init() == -1) {
-    printf("TTF_Init: %s\n", TTF_GetError());
+    fprintf(stderr, "TTF_Init: %s\n", TTF_GetError());
     return 1;
   }
 
-  // TODO: Load from .h file like bell_wav.xxd
-  // Use SDL_IOFromDynamicMem and TTF_OpenFontIndexDPIIO.
-  font_15 = TTF_OpenFont("lemon.ttf", 15);
-  if (!font_15) {
-    printf("TTF_OpenFont: %s\n", TTF_GetError());
-    return 1;
-  }
+  AppState app;
+  initialize_app(&app, graph_file);
 
-  font_45 = TTF_OpenFont("lemon.ttf", 45);
-  if (!font_45) {
-    printf("TTF_OpenFont: %s\n", TTF_GetError());
-    return 1;
-  }
-
-  SDL_DisplayMode dm;
-  if (SDL_GetCurrentDisplayMode(0, &dm) != 0) {
-    printf("SDL_GetCurrentDisplayMode failed: %s\n", SDL_GetError());
-    return 1;
-  }
-
-  WINDOW_WIDTH = dm.w / 2;
-  WINDOW_HEIGHT = dm.h / 2;
-
-  SDL_Window *window = SDL_CreateWindow("Graph Viewer", SDL_WINDOWPOS_CENTERED,
-                                        SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH,
-                                        WINDOW_HEIGHT, SDL_WINDOW_RESIZABLE);
-  if (window == NULL) {
-    printf("Window could not be created! SDL_Error: %s\n", SDL_GetError());
+  SDL_Window *window = SDL_CreateWindow(
+      "Graph Viewer", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+      app.window_width, app.window_height, SDL_WINDOW_RESIZABLE);
+  if (!window) {
+    fprintf(stderr, "Window could not be created! SDL_Error: %s\n",
+            SDL_GetError());
     return 1;
   }
 
   SDL_Renderer *renderer =
       SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-  if (renderer == NULL) {
-    printf("Renderer could not be created! SDL_Error: %s\n", SDL_GetError());
+  if (!renderer) {
+    fprintf(stderr, "Renderer could not be created! SDL_Error: %s\n",
+            SDL_GetError());
     return 1;
   }
 
-  // Initialize SDL_mixer
   if (Mix_OpenAudio(44100, AUDIO_S16SYS, 2, 512) < 0) {
-    printf("SDL_mixer could not initialize! SDL_mixer Error: %s\n",
-           Mix_GetError());
+    fprintf(stderr, "SDL_mixer could not initialize! SDL_mixer Error: %s\n",
+            Mix_GetError());
     return 1;
   }
 
-  // Create channels
-  if (Mix_AllocateChannels(4) < 0) {
-    printf("SDL_mixer could not allocate channels! SDL_mixer Error: %s\n",
-           Mix_GetError());
-    return 1;
-  }
-
-  // Load sound from memory
   SDL_RWops *rw = SDL_RWFromMem(bell_wav, bell_wav_len);
   Mix_Chunk *sound = Mix_LoadWAV_RW(rw, 1);
   if (!sound) {
-    printf("Failed to load sound! SDL_mixer Error: %s\n", Mix_GetError());
+    fprintf(stderr, "Failed to load sound! SDL_mixer Error: %s\n",
+            Mix_GetError());
     return 1;
   }
-
-  // Play the sound
-  /*
-  int channel = Mix_PlayChannel(-1, sound, 0);
-  if (channel == -1) {
-    printf("Failed to play sound! SDL_mixer Error: %s\n", Mix_GetError());
-    return 1;
-  }
-  */
 
   SDL_Event event;
   int quit = 0;
   Uint32 frameStart;
   int frameTime;
-  int mouseX, mouseY;
 
   while (!quit) {
     frameStart = SDL_GetTicks();
 
-    SDL_GetRendererOutputSize(renderer, &WINDOW_WIDTH, &WINDOW_HEIGHT);
-
     while (SDL_PollEvent(&event)) {
-      if (event.type == SDL_MOUSEMOTION) {
-        if (event.motion.state & SDL_BUTTON_LMASK) {
-          offset.x += event.motion.xrel / zoom;
-          offset.y += event.motion.yrel / zoom;
-        }
-        mouseX = event.motion.x;
-        mouseY = event.motion.y;
-      } else if (event.type == SDL_MOUSEWHEEL) {
-        zoom *= (event.wheel.y > 0) ? 1.1f : 0.9f;
-      } else if (event.type == SDL_QUIT) {
+      if (event.type == SDL_QUIT) {
         quit = 1;
-      } else if (event.type == SDL_WINDOWEVENT) {
-        if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
-          WINDOW_WIDTH = event.window.data1;
-          WINDOW_HEIGHT = event.window.data2;
-        }
-      } else if (event.type == SDL_TEXTINPUT) {
-        if (strlen(search_text) < MAX_SEARCH_LENGTH - 1) {
-          strcat(search_text, event.text.text);
-          filter_nodes();
-        }
-      } else if (event.type == SDL_KEYDOWN) {
-        if (event.key.keysym.sym == SDLK_BACKSPACE && strlen(search_text) > 0) {
-          search_text[strlen(search_text) - 1] = '\0';
-          filter_nodes();
-        }
-      } else if (event.type == SDL_MOUSEBUTTONDOWN) {
-        if (event.button.button == SDL_BUTTON_LEFT) {
-          int x = event.button.x;
-          int y = event.button.y;
-          int left_menu_width = get_left_menu_width(WINDOW_WIDTH);
-
-          // Check if the mode button was clicked
-          if (x >= 10 && x <= left_menu_width - 10 && y >= 10 && y <= 40) {
-            toggle_mode();
-          } else {
-            // Check for node or edge clicks
-            int clicked_node = -1;
-            int clicked_edge = -1;
-            int graph_width = get_graph_width(WINDOW_WIDTH);
-
-            for (int i = 0; i < graph->node_count; i++) {
-              if (!graph->nodes[i].visible)
-                continue;
-
-              int nx = (graph->nodes[i].position.x + offset.x) * zoom +
-                       left_menu_width + (float)graph_width / 2;
-              int ny = (graph->nodes[i].position.y + offset.y) * zoom +
-                       (float)WINDOW_HEIGHT / 2;
-
-              if (sqrt(pow(x - nx, 2) + pow(y - ny, 2)) <= 5 * zoom) {
-                clicked_node = i;
-                break;
-              }
-            }
-
-            if (clicked_node == -1) {
-              for (int i = 0; i < graph->edge_count; i++) {
-                Node *source = &graph->nodes[graph->edges[i].source];
-                Node *target = &graph->nodes[graph->edges[i].target];
-
-                if (!source->visible || !target->visible)
-                  continue;
-
-                int x1 = (source->position.x + offset.x) * zoom +
-                         left_menu_width + (float)graph_width / 2;
-                int y1 = (source->position.y + offset.y) * zoom +
-                         (float)WINDOW_HEIGHT / 2;
-                int x2 = (target->position.x + offset.x) * zoom +
-                         left_menu_width + (float)graph_width / 2;
-                int y2 = (target->position.y + offset.y) * zoom +
-                         (float)WINDOW_HEIGHT / 2;
-
-                float d =
-                    abs((y2 - y1) * x - (x2 - x1) * y + x2 * y1 - y2 * x1) /
-                    sqrt(pow(y2 - y1, 2) + pow(x2 - x1, 2));
-                if (d <= 5 && x >= fmin(x1, x2) - 5 && x <= fmax(x1, x2) + 5 &&
-                    y >= fmin(y1, y2) - 5 && y <= fmax(y1, y2) + 5) {
-                  clicked_edge = i;
-                  break;
-                }
-              }
-            }
-
-            if (clicked_node != -1) {
-              select_node(clicked_node, 1);
-            } else if (clicked_edge != -1) {
-              select_edge(clicked_edge);
-            }
-          }
-        }
+      } else {
+        handle_input(&event, &app);
       }
     }
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
 
-    render_graph(renderer);
-    render_right_menu(renderer);
-    render_left_menu(renderer);
-
-    int hoveredNode = -1;
-    int left_menu_width = get_left_menu_width(WINDOW_WIDTH);
-    int graph_width = get_graph_width(WINDOW_WIDTH);
-
-    // Check for node hover
-    for (int i = 0; i < graph->node_count; i++) {
-      if (!graph->nodes[i].visible)
-        continue;
-
-      int x = (graph->nodes[i].position.x + offset.x) * zoom + left_menu_width +
-              (float)graph_width / 2;
-      int y = (graph->nodes[i].position.y + offset.y) * zoom +
-              (float)WINDOW_HEIGHT / 2;
-
-      if (sqrt(pow(mouseX - x, 2) + pow(mouseY - y, 2)) <= 5 * zoom) {
-        // Highlight hovered node in yellow
-        filledCircleRGBA(renderer, x, y, 5 * zoom, 255, 255, 0, 255);
-        SDL_RenderDrawPoint(renderer, x, y);
-        hoveredNode = i;
-        break;
-      }
-    }
-
-    if (hoveredNode != -1) {
-      render_label(renderer, graph->nodes[hoveredNode].label, mouseX,
-                   mouseY - 20, font_45, SDL_WHITE);
-    } else {
-      // Check for edge hover only if not hovering over a node
-      for (int i = 0; i < graph->edge_count; i++) {
-        Node *source = &graph->nodes[graph->edges[i].source];
-        Node *target = &graph->nodes[graph->edges[i].target];
-
-        if (!source->visible || !target->visible)
-          continue;
-
-        int x1 = (source->position.x + offset.x) * zoom + left_menu_width +
-                 (float)graph_width / 2;
-        int y1 =
-            (source->position.y + offset.y) * zoom + (float)WINDOW_HEIGHT / 2;
-        int x2 = (target->position.x + offset.x) * zoom + left_menu_width +
-                 (float)graph_width / 2;
-        int y2 =
-            (target->position.y + offset.y) * zoom + (float)WINDOW_HEIGHT / 2;
-
-        float d =
-            abs((y2 - y1) * mouseX - (x2 - x1) * mouseY + x2 * y1 - y2 * x1) /
-            sqrt(pow(y2 - y1, 2) + pow(x2 - x1, 2));
-        if (d <= 5 && mouseX >= fmin(x1, x2) - 5 &&
-            mouseX <= fmax(x1, x2) + 5 && mouseY >= fmin(y1, y2) - 5 &&
-            mouseY <= fmax(y1, y2) + 5) {
-          render_label(renderer, graph->edges[i].label, mouseX, mouseY - 20,
-                       font_45, SDL_WHITE);
-          break;
-        }
-      }
-    }
+    render_graph(renderer, &app);
+    render_left_menu(renderer, &app);
+    render_right_menu(renderer, &app);
 
     SDL_RenderPresent(renderer);
 
@@ -777,14 +1306,20 @@ int main(int argc, char *argv[]) {
 
   Mix_FreeChunk(sound);
   Mix_CloseAudio();
-  TTF_CloseFont(font_15);
-  TTF_CloseFont(font_45);
-  TTF_Quit();
-  free_graph(graph);
-  free(selected_nodes);
+  cleanup_app(&app);
   SDL_DestroyRenderer(renderer);
   SDL_DestroyWindow(window);
+  TTF_Quit();
   SDL_Quit();
 
   return 0;
+}
+
+int main(int argc, char *argv[]) {
+  if (argc < 2) {
+    fprintf(stderr, "Usage: %s <graph_file.json>\n", argv[0]);
+    return 1;
+  }
+
+  return run_graph_viewer(argv[1]);
 }
