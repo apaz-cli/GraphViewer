@@ -733,12 +733,9 @@ void render_scrollbar(SDL_Renderer *renderer, int x, int y, int height,
 
 void handle_menu_scroll(int *scroll_position, int wheel_y, int total_items,
                         int visible_items, int is_page_scroll) {
-  int scroll_amount = is_page_scroll
-                          ? visible_items
-                          : 5; // Scroll 5 items at a time for mouse wheel
+  int scroll_amount = is_page_scroll ? visible_items : 1; // Scroll 1 item at a time for mouse wheel
   *scroll_position -= wheel_y * scroll_amount;
-  *scroll_position =
-      fmax(0, fmin(*scroll_position, total_items - visible_items));
+  *scroll_position = fmax(0, fmin(*scroll_position, total_items - visible_items));
 }
 
 int is_mouse_over_menu_item(int mouseX, int mouseY, int itemY, int menuX,
