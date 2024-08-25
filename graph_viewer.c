@@ -122,6 +122,7 @@ void apply_force_directed_layout(GraphData *graph);
 void apply_fruchterman_reingold_layout(GraphData *graph);
 void update_node_visibility(AppState *app);
 void cycle_selection_mode(AppState *app);
+void update_open_button_position(AppState *app);
 void set_node_selection(AppState *app, int node_id);
 void set_edge_selection(AppState *app, int edge_id);
 void render_top_bar(SDL_Renderer *renderer, AppState *app);
@@ -889,18 +890,17 @@ void render_right_menu(SDL_Renderer *renderer, AppState *app) {
 
   // Render search box
   SDL_Rect search_rect = {right_menu_x + 5, 5,
-                          right_menu_width - 10 - search_icon_size -
-                              scrollbar_width,
+                          right_menu_width - 10 - search_icon_size,
                           SEARCH_BAR_HEIGHT};
   SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
   SDL_RenderFillRect(renderer, &search_rect);
 
   render_label(renderer, app->search_bar.text, right_menu_x + 10, 10,
                app->font_small, COLOR_BLACK,
-               right_menu_width - 20 - search_icon_size - scrollbar_width);
+               right_menu_width - 20 - search_icon_size );
 
   // Render search icon
-  SDL_Rect search_icon_rect = {app->window_width - scrollbar_width -
+  SDL_Rect search_icon_rect = {app->window_width - 
                                    search_icon_size,
                                5, search_icon_size, search_icon_size};
   SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
