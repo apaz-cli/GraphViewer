@@ -1397,7 +1397,7 @@ void update_open_button_position(AppState *app) {
 #endif
 
 #ifdef __linux__
-#include <gtk/gtk.h>
+#include <stdio.h>
 #endif
 
 #ifdef _WIN32
