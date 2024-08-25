@@ -1081,8 +1081,15 @@ void handle_input(SDL_Event *event, AppState *app) {
       }
 
       if (event->motion.state & SDL_BUTTON_LMASK) {
-        app->camera.position.x += event->motion.xrel / app->camera.zoom;
-        app->camera.position.y += event->motion.yrel / app->camera.zoom;
+        // Only move the graph if the mouse is in the graph area
+        int left_menu_width = get_left_menu_width(app->window_width);
+        int right_menu_width = get_right_menu_width(app->window_width);
+        if (app->mouse_position.x > left_menu_width &&
+            app->mouse_position.x < app->window_width - right_menu_width &&
+            app->mouse_position.y > TOP_BAR_HEIGHT) {
+          app->camera.position.x += event->motion.xrel / app->camera.zoom;
+          app->camera.position.y += event->motion.yrel / app->camera.zoom;
+        }
       }
     }
     break;
