@@ -26,8 +26,6 @@
 #define TOP_BAR_HEIGHT 40
 #define OPEN_BUTTON_WIDTH 100
 
-// Function prototype
-void render_top_bar(SDL_Renderer *renderer, AppState *app);
 
 #define LAYOUT_AREA_MULTIPLIER 1000
 #define FORCE_ITERATIONS 100
@@ -126,6 +124,7 @@ void update_node_visibility(AppState *app);
 void cycle_selection_mode(AppState *app);
 void set_node_selection(AppState *app, int node_id);
 void set_edge_selection(AppState *app, int edge_id);
+void render_top_bar(SDL_Renderer *renderer, AppState *app);
 void render_graph(SDL_Renderer *renderer, AppState *app);
 void render_menus(SDL_Renderer *renderer, AppState *app);
 void render_left_menu(SDL_Renderer *renderer, AppState *app);
