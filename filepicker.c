@@ -38,7 +38,7 @@ void init_file_list(FileList* list);
 void update_file_list(FileList* list);
 int file_name_compare(const void* a, const void* b);
 void draw_file_list(SDL_Renderer* renderer, TTF_Font* font, FileList* list);
-void handle_events(SDL_Event* event, FileList* list, int* quit, char** result);
+void handle_events(SDL_Event* event, FileList* list, int* quit, char** result, SDL_Window* window);
 char* format_size(off_t size);
 char* format_time(time_t t);
 
