@@ -187,8 +187,8 @@ void free_graph(GraphData *graph) {
 GraphData *load_graph(const char *filename) {
   FILE *file = fopen(filename, "r");
   if (!file) {
-    printf("Failed to open file: %s\n", filename);
-    exit(1);
+    printf("Failed to open file: %s\nCreating an empty graph.\n", filename);
+    return create_graph(0, 0);
   }
 
   fseek(file, 0, SEEK_END);
@@ -196,8 +196,14 @@ GraphData *load_graph(const char *filename) {
   fseek(file, 0, SEEK_SET);
 
   char *json_string = malloc(file_size + 1);
-  fread(json_string, 1, file_size, file);
-  json_string[file_size] = '\0';
+  if (!json_string) {
+    printf("Failed to allocate memory for JSON string\n");
+    fclose(file);
+    return create_graph(0, 0);
+  }
+
+  size_t read_size = fread(json_string, 1, file_size, file);
+  json_string[read_size] = '\0';
 
   fclose(file);
 
@@ -206,16 +212,20 @@ GraphData *load_graph(const char *filename) {
 
   if (!json) {
     printf("Error parsing JSON\n");
-    exit(1);
+    return create_graph(0, 0);
   }
 
   cJSON *nodes = cJSON_GetObjectItemCaseSensitive(json, "nodes");
   cJSON *edges = cJSON_GetObjectItemCaseSensitive(json, "edges");
 
-  int node_count = cJSON_GetArraySize(nodes);
-  int edge_count = cJSON_GetArraySize(edges);
+  int node_count = nodes ? cJSON_GetArraySize(nodes) : 0;
+  int edge_count = edges ? cJSON_GetArraySize(edges) : 0;
 
   GraphData *graph = create_graph(node_count, edge_count);
+  if (!graph) {
+    cJSON_Delete(json);
+    return create_graph(0, 0);
+  }
 
   for (int i = 0; i < node_count; i++) {
     cJSON *node = cJSON_GetArrayItem(nodes, i);
