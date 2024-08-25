@@ -34,7 +34,7 @@ typedef struct {
 } FileList;
 
 // Function prototypes
-void init_file_list(FileList* list);
+void init_file_list(FileList* list, int window_width, int window_height);
 void update_file_list(FileList* list);
 int file_name_compare(const void* a, const void* b);
 void draw_file_list(SDL_Renderer* renderer, TTF_Font* font, FileList* list);
