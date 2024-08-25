@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <stdlib.h>
+#include <errno.h>
 
 #define MAX_PATH 1024
 #define MAX_FILES 1000
@@ -56,20 +57,27 @@ void load_directory() {
     picker.count++;
 
     dir = opendir(picker.current_path);
-    if (dir == NULL) return;
+    if (dir == NULL) {
+        fprintf(stderr, "Error opening directory '%s': %s\n", picker.current_path, strerror(errno));
+        return;
+    }
 
     while ((entry = readdir(dir)) != NULL && picker.count < MAX_FILES) {
         if (strcmp(entry->d_name, ".") == 0) continue;
 
         snprintf(full_path, MAX_PATH, "%s/%s", picker.current_path, entry->d_name);
         if (stat(full_path, &st) == 0) {
-            strcpy(picker.items[picker.count].name, entry->d_name);
+            strncpy(picker.items[picker.count].name, entry->d_name, sizeof(picker.items[picker.count].name) - 1);
+            picker.items[picker.count].name[sizeof(picker.items[picker.count].name) - 1] = '\0';
             picker.items[picker.count].is_dir = S_ISDIR(st.st_mode);
             picker.count++;
+        } else {
+            fprintf(stderr, "Error getting file info for '%s': %s\n", full_path, strerror(errno));
         }
     }
 
     closedir(dir);
+    printf("Loaded %d items from directory '%s'\n", picker.count, picker.current_path);
 }
 
 void draw_file_picker() {
@@ -134,35 +142,47 @@ void draw_file_picker() {
 
 char* run_file_picker(const char* initial_path) {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-        printf("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
+        fprintf(stderr, "SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
         return NULL;
     }
 
     if (TTF_Init() == -1) {
-        printf("TTF_Init: %s\n", TTF_GetError());
+        fprintf(stderr, "TTF_Init: %s\n", TTF_GetError());
+        SDL_Quit();
         return NULL;
     }
 
     window = SDL_CreateWindow("File Picker", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 400, 300, SDL_WINDOW_RESIZABLE);
     if (window == NULL) {
-        printf("Window could not be created! SDL_Error: %s\n", SDL_GetError());
+        fprintf(stderr, "Window could not be created! SDL_Error: %s\n", SDL_GetError());
+        TTF_Quit();
+        SDL_Quit();
         return NULL;
     }
 
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     if (renderer == NULL) {
-        printf("Renderer could not be created! SDL_Error: %s\n", SDL_GetError());
+        fprintf(stderr, "Renderer could not be created! SDL_Error: %s\n", SDL_GetError());
+        SDL_DestroyWindow(window);
+        TTF_Quit();
+        SDL_Quit();
         return NULL;
     }
 
     font = TTF_OpenFont("lemon.ttf", FONT_SIZE);
     if (font == NULL) {
-        printf("Failed to load font! SDL_ttf Error: %s\n", TTF_GetError());
+        fprintf(stderr, "Failed to load font! SDL_ttf Error: %s\n", TTF_GetError());
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        TTF_Quit();
+        SDL_Quit();
         return NULL;
     }
 
     init_file_picker(initial_path);
     load_directory();
+
+    printf("File picker initialized with path: %s\n", initial_path);
 
     SDL_Event e;
     int quit = 0;
