@@ -846,8 +846,8 @@ void render_left_menu(SDL_Renderer *renderer, AppState *app) {
   }
 
   // Render visible content
-  SDL_Rect content_area = {padding, y_offset,
-                           left_menu_width - 2 * padding - scrollbar_width,
+  SDL_Rect content_area = {0, y_offset,
+                           left_menu_width - scrollbar_width,
                            scroll_area_height};
   SDL_RenderSetViewport(renderer, &content_area);
 
