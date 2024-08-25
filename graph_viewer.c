@@ -187,13 +187,21 @@ void free_graph(GraphData *graph) {
 GraphData *load_graph(const char *filename) {
   FILE *file = fopen(filename, "r");
   if (!file) {
-    printf("Failed to open file: %s\nCreating an empty graph.\n", filename);
+    if (filename) {
+      printf("Failed to open file: %s\n", filename);
+    }
     return create_graph(0, 0);
   }
 
   fseek(file, 0, SEEK_END);
   long file_size = ftell(file);
   fseek(file, 0, SEEK_SET);
+
+  if (file_size == -1) {
+    printf("Failed to get file size\n");
+    fclose(file);
+    return create_graph(0, 0);
+  }
 
   char *json_string = malloc(file_size + 1);
   if (!json_string) {
