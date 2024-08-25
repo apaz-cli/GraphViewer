@@ -44,7 +44,7 @@ char* format_time(time_t t);
 
 char* show_file_picker(SDL_Renderer* renderer, TTF_Font* font, SDL_Window* window) {
     FileList file_list;
-    init_file_list(&file_list, WINDOW_WIDTH, WINDOW_HEIGHT);
+    init_file_list(&file_list);
 
     SDL_Event event;
     int quit = 0;
