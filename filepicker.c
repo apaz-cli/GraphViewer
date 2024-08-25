@@ -88,27 +88,27 @@ void load_directory(FilePicker* picker) {
     struct stat st;
     char full_path[MAX_PATH];
 
-    picker.count = 0;
-    picker.selected = 0;
-    picker.scroll = 0;
+    picker->count = 0;
+    picker->selected = 0;
+    picker->scroll = 0;
 
     // Add parent directory entry
-    strcpy(picker.entries[picker.count].name, "..");
-    picker.entries[picker.count].is_dir = 1;
-    picker.count++;
+    strcpy(picker->entries[picker->count].name, "..");
+    picker->entries[picker->count].is_dir = 1;
+    picker->count++;
 
-    if ((dir = opendir(picker.current_path)) != NULL) {
-        while ((ent = readdir(dir)) != NULL && picker.count < MAX_FILES) {
+    if ((dir = opendir(picker->current_path)) != NULL) {
+        while ((ent = readdir(dir)) != NULL && picker->count < MAX_FILES) {
             if (strcmp(ent->d_name, ".") == 0) continue;
 
-            snprintf(full_path, sizeof(full_path), "%s/%s", picker.current_path, ent->d_name);
+            snprintf(full_path, sizeof(full_path), "%s/%s", picker->current_path, ent->d_name);
             
             if (stat(full_path, &st) == 0) {
                 if (S_ISDIR(st.st_mode) || S_ISREG(st.st_mode)) {
-                    if (picker.search[0] == '\0' || strstr(ent->d_name, picker.search) != NULL) {
-                        strcpy(picker.entries[picker.count].name, ent->d_name);
-                        picker.entries[picker.count].is_dir = S_ISDIR(st.st_mode);
-                        picker.count++;
+                    if (picker->search[0] == '\0' || strstr(ent->d_name, picker->search) != NULL) {
+                        strcpy(picker->entries[picker->count].name, ent->d_name);
+                        picker->entries[picker->count].is_dir = S_ISDIR(st.st_mode);
+                        picker->count++;
                     }
                 }
             }
