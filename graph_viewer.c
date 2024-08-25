@@ -750,12 +750,10 @@ SDL_Rect render_scrollbar(SDL_Renderer *renderer, int x, int y, int width, int h
   return scrollbar_bg;  // Return the entire scrollbar area
 }
 
-void handle_menu_scroll(int *scroll_position, int wheel_y, int total_items,
+void handle_menu_scroll(int *scroll_position, int scroll_amount, int total_items,
                         int visible_items, int item_height) {
-  int scroll_amount = wheel_y * item_height;
-  *scroll_position -= scroll_amount;
   int max_scroll = fmax(0, (total_items - visible_items) * item_height);
-  *scroll_position = fmax(0, fmin(*scroll_position, max_scroll));
+  *scroll_position = fmax(0, fmin(*scroll_position - scroll_amount, max_scroll));
 }
 
 int is_mouse_over_menu_item(int mouseX, int mouseY, int itemY, int menuX,
@@ -1099,12 +1097,12 @@ void handle_input(SDL_Event *event, AppState *app) {
 
   case SDL_MOUSEWHEEL:
     if (app->mouse_position.x > app->window_width - right_menu_width) {
-      handle_menu_scroll(&app->right_scroll_position, event->wheel.y,
+      handle_menu_scroll(&app->right_scroll_position, event->wheel.y * 20,
                          app->visible_nodes_count, app->nodes_per_page, 20);
     } else if (app->mouse_position.x < left_menu_width &&
                app->mouse_position.y >
                    app->window_height - app->window_height * 0.4) {
-      handle_menu_scroll(&app->left_scroll_position, event->wheel.y,
+      handle_menu_scroll(&app->left_scroll_position, event->wheel.y * 20,
                          app->visible_nodes_count, app->nodes_per_page, 20);
     } else {
       app->camera.zoom *= (event->wheel.y > 0) ? 1.1f : 0.9f;
@@ -1255,7 +1253,8 @@ void handle_input(SDL_Event *event, AppState *app) {
         }
 
         if (scroll_amount != 0) {
-          handle_menu_scroll(scroll_position, scroll_amount, total_items, visible_items, 20 * visible_items);
+          int scroll_pixels = scroll_amount * visible_items * 20;
+          handle_menu_scroll(scroll_position, scroll_pixels, total_items, visible_items, 20);
         }
       }
     }
