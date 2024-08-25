@@ -874,11 +874,15 @@ void render_left_menu(SDL_Renderer *renderer, AppState *app) {
       snprintf(detail_text, sizeof(detail_text), "%d: %s",
                app->graph->nodes[i].id, app->graph->nodes[i].label);
 
+      // Calculate available width for text
+      int available_width = content_area.w - 10;  // Subtract padding
+
       // Truncate the text if it's too long
       char truncated_text[MAX_LABEL_LENGTH * 2];
-      if (strlen(detail_text) > content_area.w / 8) {  // Approximate character width
-        strncpy(truncated_text, detail_text, content_area.w / 8);
-        truncated_text[content_area.w / 8] = '\0';
+      int max_chars = available_width / TTF_FontHeight(app->font_small);  // Estimate max chars
+      if (strlen(detail_text) > max_chars) {
+        strncpy(truncated_text, detail_text, max_chars);
+        truncated_text[max_chars] = '\0';
       } else {
         strcpy(truncated_text, detail_text);
       }
