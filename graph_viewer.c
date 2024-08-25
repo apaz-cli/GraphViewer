@@ -732,10 +732,10 @@ void render_scrollbar(SDL_Renderer *renderer, int x, int y, int height,
 }
 
 void handle_menu_scroll(int *scroll_position, int wheel_y, int total_items,
-                        int visible_items, int is_page_scroll) {
-  int scroll_amount = is_page_scroll ? visible_items : 1; // Scroll 1 item at a time for mouse wheel
-  *scroll_position -= wheel_y * scroll_amount;
-  *scroll_position = fmax(0, fmin(*scroll_position, total_items - visible_items));
+                        int visible_items, int item_height) {
+  int scroll_amount = wheel_y * item_height;
+  *scroll_position -= scroll_amount;
+  *scroll_position = fmax(0, fmin(*scroll_position, (total_items - visible_items) * item_height));
 }
 
 int is_mouse_over_menu_item(int mouseX, int mouseY, int itemY, int menuX,
@@ -1061,12 +1061,12 @@ void handle_input(SDL_Event *event, AppState *app) {
   case SDL_MOUSEWHEEL:
     if (app->mouse_position.x > app->window_width - right_menu_width) {
       handle_menu_scroll(&app->right_scroll_position, event->wheel.y,
-                         app->visible_nodes_count, app->nodes_per_page, 0);
+                         app->visible_nodes_count, app->nodes_per_page, 20);
     } else if (app->mouse_position.x < left_menu_width &&
                app->mouse_position.y >
                    app->window_height - app->window_height * 0.4) {
       handle_menu_scroll(&app->left_scroll_position, event->wheel.y,
-                         app->visible_nodes_count, app->nodes_per_page, 0);
+                         app->visible_nodes_count, app->nodes_per_page, 20);
     } else {
       app->camera.zoom *= (event->wheel.y > 0) ? 1.1f : 0.9f;
     }
@@ -1137,23 +1137,23 @@ void handle_input(SDL_Event *event, AppState *app) {
     case SDLK_PAGEUP:
       if (app->mouse_position.x > app->window_width - right_menu_width) {
         handle_menu_scroll(&app->right_scroll_position, 1,
-                           app->visible_nodes_count, app->nodes_per_page, 1);
+                           app->visible_nodes_count, app->nodes_per_page, 20 * app->nodes_per_page);
       } else if (app->mouse_position.x < left_menu_width &&
                  app->mouse_position.y >
                      app->window_height - app->window_height * 0.4) {
         handle_menu_scroll(&app->left_scroll_position, 1,
-                           app->visible_nodes_count, app->nodes_per_page, 1);
+                           app->visible_nodes_count, app->nodes_per_page, 20 * app->nodes_per_page);
       }
       break;
     case SDLK_PAGEDOWN:
       if (app->mouse_position.x > app->window_width - right_menu_width) {
         handle_menu_scroll(&app->right_scroll_position, -1,
-                           app->visible_nodes_count, app->nodes_per_page, 1);
+                           app->visible_nodes_count, app->nodes_per_page, 20 * app->nodes_per_page);
       } else if (app->mouse_position.x < left_menu_width &&
                  app->mouse_position.y >
                      app->window_height - app->window_height * 0.4) {
         handle_menu_scroll(&app->left_scroll_position, -1,
-                           app->visible_nodes_count, app->nodes_per_page, 1);
+                           app->visible_nodes_count, app->nodes_per_page, 20 * app->nodes_per_page);
       }
       break;
     }
