@@ -728,17 +728,24 @@ void render_label(SDL_Renderer *renderer, const char *text, int x, int y,
 
 SDL_Rect render_scrollbar(SDL_Renderer *renderer, int x, int y, int width, int height,
                           int total_items, int visible_items, int scroll_position) {
-  int scrollbar_height = (visible_items * height) / total_items;
-  int scrollbar_y = y + (scroll_position * (height - scrollbar_height)) /
-                            (total_items - visible_items);
+  int content_height = total_items * 20; // Assuming each item is 20 pixels high
+  float visible_ratio = (float)height / content_height;
+  int scrollbar_height = (int)(visible_ratio * height);
+  scrollbar_height = (scrollbar_height < 20) ? 20 : scrollbar_height; // Minimum scrollbar height
+
+  int max_scroll = content_height - height;
+  float scroll_ratio = (max_scroll > 0) ? (float)scroll_position / max_scroll : 0;
+  int scrollbar_y = y + (int)(scroll_ratio * (height - scrollbar_height));
 
   SDL_Rect scrollbar_bg = {x, y, width, height};
-  SDL_SetRenderDrawColor(renderer, 70, 70, 70, 255);
-  SDL_RenderFillRect(renderer, &scrollbar_bg);
+  if (renderer) {
+    SDL_SetRenderDrawColor(renderer, 70, 70, 70, 255);
+    SDL_RenderFillRect(renderer, &scrollbar_bg);
 
-  SDL_Rect scrollbar_handle = {x, scrollbar_y, width, scrollbar_height};
-  SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
-  SDL_RenderFillRect(renderer, &scrollbar_handle);
+    SDL_Rect scrollbar_handle = {x, scrollbar_y, width, scrollbar_height};
+    SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
+    SDL_RenderFillRect(renderer, &scrollbar_handle);
+  }
 
   return scrollbar_bg;  // Return the entire scrollbar area
 }
@@ -843,13 +850,11 @@ void render_left_menu(SDL_Renderer *renderer, AppState *app) {
     }
   }
 
-  // Render scrollbar if necessary
+  // Render scrollbar
   int scroll_area_height = detail_area_height - title_height;
-  if (total_content_height > scroll_area_height) {
-    render_scrollbar(renderer, left_menu_width - scrollbar_width, y_offset,
-                     scrollbar_width, scroll_area_height, total_content_height,
-                     scroll_area_height, app->left_scroll_position);
-  }
+  render_scrollbar(renderer, left_menu_width - scrollbar_width, y_offset,
+                   scrollbar_width, scroll_area_height, selected_count,
+                   scroll_area_height / item_height, app->left_scroll_position);
 
   // Render visible content
   SDL_Rect content_area = {0, y_offset,
@@ -928,12 +933,10 @@ void render_right_menu(SDL_Renderer *renderer, AppState *app) {
 
   // Render scrollbar
   int scroll_area_height = app->window_height - SEARCH_BAR_HEIGHT - 20;
-  if (total_content_height > scroll_area_height) {
-    render_scrollbar(renderer, app->window_width - scrollbar_width,
-                     SEARCH_BAR_HEIGHT + 10, scrollbar_width, scroll_area_height,
-                     total_content_height, scroll_area_height,
-                     app->right_scroll_position);
-  }
+  render_scrollbar(renderer, app->window_width - scrollbar_width,
+                   SEARCH_BAR_HEIGHT + 10, scrollbar_width, scroll_area_height,
+                   app->visible_nodes_count, scroll_area_height / item_height,
+                   app->right_scroll_position);
 
   // Render visible content
   SDL_Rect content_area = {right_menu_x, y_offset,
