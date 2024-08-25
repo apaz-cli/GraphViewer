@@ -123,7 +123,7 @@ void apply_fruchterman_reingold_layout(GraphData *graph);
 void update_node_visibility(AppState *app);
 void cycle_selection_mode(AppState *app);
 void update_open_button_position(AppState *app);
-char* handle_open_button_click(void);
+const char* handle_open_button_click(void);
 void set_node_selection(AppState *app, int node_id);
 void set_edge_selection(AppState *app, int edge_id);
 void render_top_bar(SDL_Renderer *renderer, AppState *app);
@@ -134,6 +134,7 @@ void render_right_menu(SDL_Renderer *renderer, AppState *app);
 void handle_input(SDL_Event *event, AppState *app);
 void initialize_app(AppState *app, const char *graph_file);
 void cleanup_app(AppState *app);
+void reinitialize_app(AppState *app, const char *graph_file);
 int run_graph_viewer(const char *graph_file);
 
 // Utility functions
@@ -1144,10 +1145,9 @@ void handle_input(SDL_Event *event, AppState *app) {
 
       if (x >= app->open_button.x && x <= app->open_button.x + app->open_button.w &&
           y >= app->open_button.y && y <= app->open_button.y + app->open_button.h) {
-        char* selected_file = handle_open_button_click();
+        const char* selected_file = handle_open_button_click();
         printf("Selected file: %s\n", selected_file);
-        // Here you would typically load the new graph file
-        // For now, we'll just print the selected file
+        reinitialize_app(app, selected_file);
       } else if (x >= 10 && x <= left_menu_width - 10 && y >= 10 && y <= 40) {
         cycle_selection_mode(app);
       } else if (x >= 10 && x <= left_menu_width - 10 && y >= 50 && y <= 80) {
@@ -1392,10 +1392,10 @@ void update_open_button_position(AppState *app) {
   };
 }
 
-char* handle_open_button_click(void) {
+const char* handle_open_button_click(void) {
   // For now, always return "shape.json"
   // In the future, this is where you'd implement the file chooser
-  return (char*)"shape.json";
+  return "shape.json";
 }
 
 void cleanup_app(AppState *app) {
@@ -1404,6 +1404,47 @@ void cleanup_app(AppState *app) {
   TTF_CloseFont(app->font_small);
   TTF_CloseFont(app->font_medium);
   TTF_CloseFont(app->font_large);
+}
+
+void reinitialize_app(AppState *app, const char *graph_file) {
+  // Clean up existing resources
+  free_graph(app->graph);
+  free(app->selected_nodes);
+
+  // Reinitialize the application
+  app->graph = load_graph(graph_file);
+  if (!app->graph) {
+    fprintf(stderr, "Failed to load graph\n");
+    exit(1);
+  }
+
+  app->camera.zoom = 1.0f;
+  app->camera.position = (Vec2f){0, 0};
+
+  app->selected_nodes = calloc(app->graph->node_count, sizeof(int));
+  if (!app->selected_nodes) {
+    fprintf(stderr, "Failed to allocate memory for selected nodes\n");
+    exit(1);
+  }
+
+  app->selection_mode = SELECT_SINGLE;
+  app->right_scroll_position = 0;
+  app->left_scroll_position = 0;
+  app->visible_nodes_count = app->graph->node_count;
+  app->filter_referenced = 0;
+
+  app->hovered_edge = -1;
+  app->hovered_node = -1;
+
+  app->is_dragging_left_scrollbar = 0;
+  app->is_dragging_right_scrollbar = 0;
+  app->drag_start_y = 0;
+  app->drag_start_scroll = 0;
+
+  memset(app->search_bar.text, 0, MAX_SEARCH_LENGTH);
+
+  update_node_visibility(app);
+  update_open_button_position(app);
 }
 
 int run_graph_viewer(const char *graph_file) {
