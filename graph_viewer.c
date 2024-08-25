@@ -720,21 +720,21 @@ void render_label(SDL_Renderer *renderer, const char *text, int x, int y,
   SDL_DestroyTexture(texture);
 }
 
-SDL_Rect render_scrollbar(SDL_Renderer *renderer, int x, int y, int height,
+SDL_Rect render_scrollbar(SDL_Renderer *renderer, int x, int y, int width, int height,
                           int total_items, int visible_items, int scroll_position) {
   int scrollbar_height = (visible_items * height) / total_items;
   int scrollbar_y = y + (scroll_position * (height - scrollbar_height)) /
                             (total_items - visible_items);
 
-  SDL_Rect scrollbar_bg = {x, y, 15, height};
+  SDL_Rect scrollbar_bg = {x, y, width, height};
   SDL_SetRenderDrawColor(renderer, 70, 70, 70, 255);
   SDL_RenderFillRect(renderer, &scrollbar_bg);
 
-  SDL_Rect scrollbar_handle = {x + 2, scrollbar_y, 11, scrollbar_height};
+  SDL_Rect scrollbar_handle = {x, scrollbar_y, width, scrollbar_height};
   SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
   SDL_RenderFillRect(renderer, &scrollbar_handle);
 
-  return scrollbar_handle;
+  return scrollbar_bg;  // Return the entire scrollbar area
 }
 
 void handle_menu_scroll(int *scroll_position, int wheel_y, int total_items,
@@ -841,7 +841,7 @@ void render_left_menu(SDL_Renderer *renderer, AppState *app) {
   int scroll_area_height = detail_area_height - title_height;
   if (total_content_height > scroll_area_height) {
     render_scrollbar(renderer, left_menu_width - scrollbar_width, y_offset,
-                     scroll_area_height, total_content_height,
+                     scrollbar_width, scroll_area_height, total_content_height,
                      scroll_area_height, app->left_scroll_position);
   }
 
@@ -925,7 +925,7 @@ void render_right_menu(SDL_Renderer *renderer, AppState *app) {
   int scroll_area_height = app->window_height - SEARCH_BAR_HEIGHT - 20;
   if (total_content_height > scroll_area_height) {
     render_scrollbar(renderer, app->window_width - scrollbar_width,
-                     SEARCH_BAR_HEIGHT + 10, scroll_area_height,
+                     SEARCH_BAR_HEIGHT + 10, scrollbar_width, scroll_area_height,
                      total_content_height, scroll_area_height,
                      app->right_scroll_position);
   }
@@ -1107,9 +1107,10 @@ void handle_input(SDL_Event *event, AppState *app) {
         app->filter_referenced = !app->filter_referenced;
         update_node_visibility(app);
       } else if (x >= app->window_width - right_menu_width) {
+        int scrollbar_width = 15;
         // Check if clicking on right scrollbar
-        SDL_Rect right_scrollbar = render_scrollbar(NULL, app->window_width - 15, SEARCH_BAR_HEIGHT + 10,
-                                                    app->window_height - SEARCH_BAR_HEIGHT - 20,
+        SDL_Rect right_scrollbar = render_scrollbar(NULL, app->window_width - scrollbar_width, SEARCH_BAR_HEIGHT + 10,
+                                                    scrollbar_width, app->window_height - SEARCH_BAR_HEIGHT - 20,
                                                     app->visible_nodes_count * 20,
                                                     app->window_height - SEARCH_BAR_HEIGHT - 20,
                                                     app->right_scroll_position);
@@ -1118,7 +1119,7 @@ void handle_input(SDL_Event *event, AppState *app) {
           app->is_dragging_right_scrollbar = 1;
           app->drag_start_y = y;
           app->drag_start_scroll = app->right_scroll_position;
-        } else {
+        } else if (x < app->window_width - scrollbar_width) {
           // Clicking in the right menu
           int y_offset = SEARCH_BAR_HEIGHT + 10 - app->right_scroll_position;
           int nodes_rendered = 0;
@@ -1134,10 +1135,11 @@ void handle_input(SDL_Event *event, AppState *app) {
           }
         }
       } else if (x < left_menu_width && y > app->window_height - app->window_height * 0.4) {
+        int scrollbar_width = 15;
         // Check if clicking on left scrollbar
-        SDL_Rect left_scrollbar = render_scrollbar(NULL, left_menu_width - 15,
+        SDL_Rect left_scrollbar = render_scrollbar(NULL, left_menu_width - scrollbar_width,
                                                    app->window_height - app->window_height * 0.4 + 50,
-                                                   app->window_height * 0.4 - 50,
+                                                   scrollbar_width, app->window_height * 0.4 - 50,
                                                    app->visible_nodes_count * 20,
                                                    app->window_height * 0.4 - 50,
                                                    app->left_scroll_position);
@@ -1146,7 +1148,7 @@ void handle_input(SDL_Event *event, AppState *app) {
           app->is_dragging_left_scrollbar = 1;
           app->drag_start_y = y;
           app->drag_start_scroll = app->left_scroll_position;
-        } else {
+        } else if (x < left_menu_width - scrollbar_width) {
           // Clicking in the left menu's "Selected Objects" section
           int y_offset = app->window_height - app->window_height * 0.4 + 50 - app->left_scroll_position;
           for (int i = 0; i < app->graph->node_count; i++) {
