@@ -1392,10 +1392,100 @@ void update_open_button_position(AppState *app) {
   };
 }
 
+#ifdef __APPLE__
+#include <CoreFoundation/CoreFoundation.h>
+#endif
+
+#ifdef __linux__
+#include <gtk/gtk.h>
+#endif
+
+#ifdef _WIN32
+#include <windows.h>
+#include <commdlg.h>
+#endif
+
 const char* handle_open_button_click(void) {
-  // For now, always return "shape.json"
-  // In the future, this is where you'd implement the file chooser
-  return "shape.json";
+    static char selected_file[1024] = {0};
+
+#ifdef __APPLE__
+    // macOS implementation
+    CFURLRef fileURL = NULL;
+    CFStringRef fileName = NULL;
+    CFURLRef dirURL = CFURLCreateWithFileSystemPath(NULL, CFSTR("."), kCFURLPOSIXPathStyle, true);
+    CFArrayRef fileTypes = CFArrayCreate(NULL, (const void*[]){CFSTR("json")}, 1, &kCFTypeArrayCallBacks);
+
+    CFOptionFlags dialogOptions = 0;
+    fileURL = CFUserNotificationCreateFileDialogRef(dirURL, dialogOptions, fileTypes, NULL, NULL);
+
+    if (fileURL != NULL) {
+        fileName = CFURLCopyLastPathComponent(fileURL);
+        CFStringGetCString(fileName, selected_file, sizeof(selected_file), kCFStringEncodingUTF8);
+        CFRelease(fileName);
+        CFRelease(fileURL);
+    }
+
+    CFRelease(dirURL);
+    CFRelease(fileTypes);
+
+#elif defined(__linux__)
+    // Linux implementation
+    GtkWidget *dialog;
+    GtkFileChooserAction action = GTK_FILE_CHOOSER_ACTION_OPEN;
+    gint res;
+
+    gtk_init(NULL, NULL);
+    dialog = gtk_file_chooser_dialog_new("Open File",
+                                         NULL,
+                                         action,
+                                         "_Cancel",
+                                         GTK_RESPONSE_CANCEL,
+                                         "_Open",
+                                         GTK_RESPONSE_ACCEPT,
+                                         NULL);
+
+    GtkFileFilter *filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(filter, "JSON files");
+    gtk_file_filter_add_pattern(filter, "*.json");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filter);
+
+    res = gtk_dialog_run(GTK_DIALOG(dialog));
+    if (res == GTK_RESPONSE_ACCEPT) {
+        char *filename;
+        GtkFileChooser *chooser = GTK_FILE_CHOOSER(dialog);
+        filename = gtk_file_chooser_get_filename(chooser);
+        strncpy(selected_file, filename, sizeof(selected_file) - 1);
+        g_free(filename);
+    }
+
+    gtk_widget_destroy(dialog);
+    while (gtk_events_pending()) gtk_main_iteration();
+
+#elif defined(_WIN32)
+    // Windows implementation
+    OPENFILENAME ofn;
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = NULL;
+    ofn.lpstrFile = selected_file;
+    ofn.lpstrFile[0] = '\0';
+    ofn.nMaxFile = sizeof(selected_file);
+    ofn.lpstrFilter = "JSON Files\0*.json\0All Files\0*.*\0";
+    ofn.nFilterIndex = 1;
+    ofn.lpstrFileTitle = NULL;
+    ofn.nMaxFileTitle = 0;
+    ofn.lpstrInitialDir = NULL;
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+
+    if (GetOpenFileName(&ofn) == TRUE) {
+        // File selected
+    } else {
+        // No file selected or error
+        selected_file[0] = '\0';
+    }
+#endif
+
+    return selected_file[0] != '\0' ? selected_file : NULL;
 }
 
 void cleanup_app(AppState *app) {
