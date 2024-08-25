@@ -481,6 +481,7 @@ void set_node_selection(AppState *app, int node_id) {
     exit(1);
   }
   update_node_visibility(app);
+  app->left_scroll_position = 0; // Reset left menu scroll position
 }
 
 void set_edge_selection(AppState *app, int edge_id) {
@@ -488,6 +489,7 @@ void set_edge_selection(AppState *app, int edge_id) {
   app->selected_nodes[app->graph->edges[edge_id].source] = 1;
   app->selected_nodes[app->graph->edges[edge_id].target] = 1;
   update_node_visibility(app);
+  app->left_scroll_position = 0; // Reset left menu scroll position
 }
 
 void render_label_background(SDL_Renderer *renderer, int x, int y, int width,
