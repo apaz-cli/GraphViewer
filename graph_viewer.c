@@ -844,7 +844,7 @@ void render_left_menu(SDL_Renderer *renderer, AppState *app) {
     if (app->selected_nodes[i] && app->graph->nodes[i].visible) {
       selected_count++;
       char detail_text[MAX_LABEL_LENGTH * 2];
-      snprintf(detail_text, sizeof(detail_text), "Node %d: %s",
+      snprintf(detail_text, sizeof(detail_text), "%d: %s",
                app->graph->nodes[i].id, app->graph->nodes[i].label);
 
       SDL_Surface *text_surface = TTF_RenderText_Blended_Wrapped(
@@ -871,7 +871,7 @@ void render_left_menu(SDL_Renderer *renderer, AppState *app) {
   for (int i = 0; i < app->graph->node_count; i++) {
     if (app->selected_nodes[i] && app->graph->nodes[i].visible) {
       char detail_text[MAX_LABEL_LENGTH * 2];
-      snprintf(detail_text, sizeof(detail_text), "Node %d: %s",
+      snprintf(detail_text, sizeof(detail_text), "%d: %s",
                app->graph->nodes[i].id, app->graph->nodes[i].label);
 
       SDL_Color bg_color =
