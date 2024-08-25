@@ -756,6 +756,11 @@ void handle_menu_scroll(int *scroll_position, int scroll_amount, int total_items
                         int visible_items, int item_height) {
   int max_scroll = fmax(0, (total_items - visible_items) * item_height);
   *scroll_position = fmax(0, fmin(*scroll_position - scroll_amount, max_scroll));
+  
+  // Ensure we don't scroll past the end of the content
+  if (*scroll_position > max_scroll) {
+    *scroll_position = max_scroll;
+  }
 }
 
 int is_mouse_over_menu_item(int mouseX, int mouseY, int itemY, int menuX,
@@ -1104,8 +1109,15 @@ void handle_input(SDL_Event *event, AppState *app) {
     } else if (app->mouse_position.x < left_menu_width &&
                app->mouse_position.y >
                    app->window_height - app->window_height * 0.4) {
+      int selected_count = 0;
+      for (int i = 0; i < app->graph->node_count; i++) {
+        if (app->selected_nodes[i] && app->graph->nodes[i].visible) {
+          selected_count++;
+        }
+      }
+      int visible_items = (app->window_height * 0.4 - 50) / 20;
       handle_menu_scroll(&app->left_scroll_position, event->wheel.y * 20,
-                         app->visible_nodes_count, app->nodes_per_page, 20);
+                         selected_count, visible_items, 20);
     } else {
       app->camera.zoom *= (event->wheel.y > 0) ? 1.1f : 0.9f;
     }
