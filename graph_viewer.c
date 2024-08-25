@@ -874,9 +874,19 @@ void render_left_menu(SDL_Renderer *renderer, AppState *app) {
       snprintf(detail_text, sizeof(detail_text), "%d: %s",
                app->graph->nodes[i].id, app->graph->nodes[i].label);
 
+      // Truncate the text if it's too long
+      char truncated_text[MAX_LABEL_LENGTH * 2];
+      if (strlen(detail_text) > content_area.w / 8) {  // Approximate character width
+        strncpy(truncated_text, detail_text, content_area.w / 8 - 3);
+        truncated_text[content_area.w / 8 - 3] = '\0';
+        strcat(truncated_text, "...");
+      } else {
+        strcpy(truncated_text, detail_text);
+      }
+
       SDL_Color bg_color =
           (selected_count % 2 == 0) ? COLOR_MENU_ITEM_1 : COLOR_MENU_ITEM_2;
-      render_menu_item(renderer, detail_text, 0, y_offset, content_area.w,
+      render_menu_item(renderer, truncated_text, 0, y_offset, content_area.w,
                        item_height, bg_color, COLOR_WHITE, app->font_small);
 
       y_offset += item_height;
