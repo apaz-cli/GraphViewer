@@ -881,9 +881,8 @@ void render_left_menu(SDL_Renderer *renderer, AppState *app) {
       char truncated_text[MAX_LABEL_LENGTH * 2];
       int max_chars = available_width / (TTF_FontHeight(app->font_small) / 2);  // More accurate estimate
       if (strlen(detail_text) > max_chars) {
-        strncpy(truncated_text, detail_text, max_chars - 3);
-        truncated_text[max_chars - 3] = '\0';
-        strcat(truncated_text, "...");
+        strncpy(truncated_text, detail_text, max_chars);
+        truncated_text[max_chars] = '\0';
       } else {
         strcpy(truncated_text, detail_text);
       }
