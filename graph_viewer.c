@@ -877,9 +877,8 @@ void render_left_menu(SDL_Renderer *renderer, AppState *app) {
       // Truncate the text if it's too long
       char truncated_text[MAX_LABEL_LENGTH * 2];
       if (strlen(detail_text) > content_area.w / 8) {  // Approximate character width
-        strncpy(truncated_text, detail_text, content_area.w / 8 - 3);
-        truncated_text[content_area.w / 8 - 3] = '\0';
-        strcat(truncated_text, "...");
+        strncpy(truncated_text, detail_text, content_area.w / 8);
+        truncated_text[content_area.w / 8] = '\0';
       } else {
         strcpy(truncated_text, detail_text);
       }
