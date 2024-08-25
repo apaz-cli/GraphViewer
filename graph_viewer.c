@@ -741,7 +741,8 @@ void handle_menu_scroll(int *scroll_position, int wheel_y, int total_items,
                         int visible_items, int item_height) {
   int scroll_amount = wheel_y * item_height;
   *scroll_position -= scroll_amount;
-  *scroll_position = fmax(0, fmin(*scroll_position, (total_items - visible_items) * item_height));
+  int max_scroll = fmax(0, (total_items - visible_items) * item_height);
+  *scroll_position = fmax(0, fmin(*scroll_position, max_scroll));
 }
 
 int is_mouse_over_menu_item(int mouseX, int mouseY, int itemY, int menuX,
@@ -1192,47 +1193,53 @@ void handle_input(SDL_Event *event, AppState *app) {
       }
       break;
     case SDLK_PAGEUP:
-      if (app->mouse_position.x > app->window_width - right_menu_width) {
-        handle_menu_scroll(&app->right_scroll_position, 1,
-                           app->visible_nodes_count, app->nodes_per_page, 20 * app->nodes_per_page);
-      } else if (app->mouse_position.x < left_menu_width &&
-                 app->mouse_position.y >
-                     app->window_height - app->window_height * 0.4) {
-        handle_menu_scroll(&app->left_scroll_position, 1,
-                           app->visible_nodes_count, app->nodes_per_page, 20 * app->nodes_per_page);
-      }
-      break;
     case SDLK_PAGEDOWN:
-      if (app->mouse_position.x > app->window_width - right_menu_width) {
-        handle_menu_scroll(&app->right_scroll_position, -1,
-                           app->visible_nodes_count, app->nodes_per_page, 20 * app->nodes_per_page);
-      } else if (app->mouse_position.x < left_menu_width &&
-                 app->mouse_position.y >
-                     app->window_height - app->window_height * 0.4) {
-        handle_menu_scroll(&app->left_scroll_position, -1,
-                           app->visible_nodes_count, app->nodes_per_page, 20 * app->nodes_per_page);
-      }
-      break;
     case SDLK_HOME:
-      if (app->mouse_position.x > app->window_width - right_menu_width) {
-        app->right_scroll_position = 0;
-      } else if (app->mouse_position.x < left_menu_width &&
-                 app->mouse_position.y >
-                     app->window_height - app->window_height * 0.4) {
-        app->left_scroll_position = 0;
-      }
-      break;
     case SDLK_END:
+    {
+      int scroll_amount = 0;
+      int *scroll_position = NULL;
+      int total_items = 0;
+      int visible_items = 0;
+
       if (app->mouse_position.x > app->window_width - right_menu_width) {
-        app->right_scroll_position = (app->visible_nodes_count - app->nodes_per_page) * 20;
-        app->right_scroll_position = fmax(0, app->right_scroll_position);
+        scroll_position = &app->right_scroll_position;
+        total_items = app->visible_nodes_count;
+        visible_items = app->nodes_per_page;
       } else if (app->mouse_position.x < left_menu_width &&
-                 app->mouse_position.y >
-                     app->window_height - app->window_height * 0.4) {
-        app->left_scroll_position = (app->visible_nodes_count - app->nodes_per_page) * 20;
-        app->left_scroll_position = fmax(0, app->left_scroll_position);
+                 app->mouse_position.y > app->window_height - app->window_height * 0.4) {
+        scroll_position = &app->left_scroll_position;
+        // Count selected and visible nodes for the left menu
+        for (int i = 0; i < app->graph->node_count; i++) {
+          if (app->selected_nodes[i] && app->graph->nodes[i].visible) {
+            total_items++;
+          }
+        }
+        visible_items = (app->window_height * 0.4 - 50) / 20; // Approximate number of visible items in left menu
       }
-      break;
+
+      if (scroll_position) {
+        switch (event->key.keysym.sym) {
+          case SDLK_PAGEUP:
+            scroll_amount = 1;
+            break;
+          case SDLK_PAGEDOWN:
+            scroll_amount = -1;
+            break;
+          case SDLK_HOME:
+            *scroll_position = 0;
+            break;
+          case SDLK_END:
+            *scroll_position = fmax(0, (total_items - visible_items) * 20);
+            break;
+        }
+
+        if (scroll_amount != 0) {
+          handle_menu_scroll(scroll_position, scroll_amount, total_items, visible_items, 20 * visible_items);
+        }
+      }
+    }
+    break;
     }
     break;
 
