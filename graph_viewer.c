@@ -123,7 +123,7 @@ void apply_fruchterman_reingold_layout(GraphData *graph);
 void update_node_visibility(AppState *app);
 void cycle_selection_mode(AppState *app);
 void update_open_button_position(AppState *app);
-const char* handle_open_button_click(void);
+char* handle_open_button_click(void);
 void set_node_selection(AppState *app, int node_id);
 void set_edge_selection(AppState *app, int edge_id);
 void render_top_bar(SDL_Renderer *renderer, AppState *app);
@@ -1144,7 +1144,7 @@ void handle_input(SDL_Event *event, AppState *app) {
 
       if (x >= app->open_button.x && x <= app->open_button.x + app->open_button.w &&
           y >= app->open_button.y && y <= app->open_button.y + app->open_button.h) {
-        const char* selected_file = handle_open_button_click();
+        char* selected_file = handle_open_button_click();
         printf("Selected file: %s\n", selected_file);
         // Here you would typically load the new graph file
         // For now, we'll just print the selected file
@@ -1392,10 +1392,10 @@ void update_open_button_position(AppState *app) {
   };
 }
 
-const char* handle_open_button_click(void) {
+char* handle_open_button_click(void) {
   // For now, always return "shape.json"
   // In the future, this is where you'd implement the file chooser
-  return "shape.json";
+  return (char*)"shape.json";
 }
 
 void cleanup_app(AppState *app) {
