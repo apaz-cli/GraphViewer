@@ -104,6 +104,10 @@ typedef struct {
   int filter_referenced;
   int hovered_node;
   int hovered_edge;
+  int is_dragging_left_scrollbar;
+  int is_dragging_right_scrollbar;
+  int drag_start_y;
+  int drag_start_scroll;
 } AppState;
 
 // Function declarations
@@ -716,8 +720,8 @@ void render_label(SDL_Renderer *renderer, const char *text, int x, int y,
   SDL_DestroyTexture(texture);
 }
 
-void render_scrollbar(SDL_Renderer *renderer, int x, int y, int height,
-                      int total_items, int visible_items, int scroll_position) {
+SDL_Rect render_scrollbar(SDL_Renderer *renderer, int x, int y, int height,
+                          int total_items, int visible_items, int scroll_position) {
   int scrollbar_height = (visible_items * height) / total_items;
   int scrollbar_y = y + (scroll_position * (height - scrollbar_height)) /
                             (total_items - visible_items);
@@ -729,6 +733,8 @@ void render_scrollbar(SDL_Renderer *renderer, int x, int y, int height,
   SDL_Rect scrollbar_handle = {x + 2, scrollbar_y, 11, scrollbar_height};
   SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
   SDL_RenderFillRect(renderer, &scrollbar_handle);
+
+  return scrollbar_handle;
 }
 
 void handle_menu_scroll(int *scroll_position, int wheel_y, int total_items,
@@ -965,96 +971,113 @@ void handle_input(SDL_Event *event, AppState *app) {
     app->mouse_position.x = event->motion.x;
     app->mouse_position.y = event->motion.y;
 
-    // Reset hover states
-    app->hovered_node = -1;
-    app->hovered_edge = -1;
-    app->right_menu_hovered_item = -1;
+    // Handle scrollbar dragging
+    if (app->is_dragging_left_scrollbar) {
+      int drag_distance = event->motion.y - app->drag_start_y;
+      int scroll_area_height = app->window_height * 0.4 - 50;
+      int max_scroll = app->visible_nodes_count * 20 - scroll_area_height;
+      app->left_scroll_position = app->drag_start_scroll + 
+        (drag_distance * max_scroll) / scroll_area_height;
+      app->left_scroll_position = fmax(0, fmin(app->left_scroll_position, max_scroll));
+    } else if (app->is_dragging_right_scrollbar) {
+      int drag_distance = event->motion.y - app->drag_start_y;
+      int scroll_area_height = app->window_height - SEARCH_BAR_HEIGHT - 20;
+      int max_scroll = app->visible_nodes_count * 20 - scroll_area_height;
+      app->right_scroll_position = app->drag_start_scroll + 
+        (drag_distance * max_scroll) / scroll_area_height;
+      app->right_scroll_position = fmax(0, fmin(app->right_scroll_position, max_scroll));
+    } else {
+      // Reset hover states
+      app->hovered_node = -1;
+      app->hovered_edge = -1;
+      app->right_menu_hovered_item = -1;
 
-    int right_menu_x = app->window_width - right_menu_width;
+      int right_menu_x = app->window_width - right_menu_width;
 
-    // Check for right menu hover
-    if (app->mouse_position.x >= right_menu_x) {
-      int y_offset = SEARCH_BAR_HEIGHT + 10 - app->right_scroll_position;
-      int item_height = 20;
-      int nodes_rendered = 0;
-      for (int i = 0; i < app->graph->node_count; i++) {
-        if (app->graph->nodes[i].visible) {
-          if (app->mouse_position.y >= y_offset &&
-              app->mouse_position.y < y_offset + item_height) {
-            app->right_menu_hovered_item = nodes_rendered;
+      // Check for right menu hover
+      if (app->mouse_position.x >= right_menu_x) {
+        int y_offset = SEARCH_BAR_HEIGHT + 10 - app->right_scroll_position;
+        int item_height = 20;
+        int nodes_rendered = 0;
+        for (int i = 0; i < app->graph->node_count; i++) {
+          if (app->graph->nodes[i].visible) {
+            if (app->mouse_position.y >= y_offset &&
+                app->mouse_position.y < y_offset + item_height) {
+              app->right_menu_hovered_item = nodes_rendered;
+              break;
+            }
+            y_offset += item_height;
+            nodes_rendered++;
+          }
+        }
+      }
+
+      // Check for node hover (in graph area)
+      if (app->right_menu_hovered_item == -1 &&
+          app->mouse_position.x >= left_menu_width &&
+          app->mouse_position.x < right_menu_x) {
+        for (int i = 0; i < app->graph->node_count; i++) {
+          if (!app->graph->nodes[i].visible)
+            continue;
+
+          int nx = (app->graph->nodes[i].position.x + app->camera.position.x) *
+                       app->camera.zoom +
+                   left_menu_width + (float)graph_width / 2;
+          int ny = (app->graph->nodes[i].position.y + app->camera.position.y) *
+                       app->camera.zoom +
+                   (float)app->window_height / 2;
+
+          if (sqrt(pow(app->mouse_position.x - nx, 2) +
+                   pow(app->mouse_position.y - ny, 2)) <= 5 * app->camera.zoom) {
+            app->hovered_node = i;
             break;
           }
-          y_offset += item_height;
-          nodes_rendered++;
         }
       }
-    }
 
-    // Check for node hover (in graph area)
-    if (app->right_menu_hovered_item == -1 &&
-        app->mouse_position.x >= left_menu_width &&
-        app->mouse_position.x < right_menu_x) {
-      for (int i = 0; i < app->graph->node_count; i++) {
-        if (!app->graph->nodes[i].visible)
-          continue;
+      // Check for edge hover (in graph area)
+      if (app->hovered_node == -1 && app->right_menu_hovered_item == -1 &&
+          app->mouse_position.x >= left_menu_width &&
+          app->mouse_position.x < right_menu_x) {
+        for (int i = 0; i < app->graph->edge_count; i++) {
+          GraphNode *source = &app->graph->nodes[app->graph->edges[i].source];
+          GraphNode *target = &app->graph->nodes[app->graph->edges[i].target];
 
-        int nx = (app->graph->nodes[i].position.x + app->camera.position.x) *
-                     app->camera.zoom +
-                 left_menu_width + (float)graph_width / 2;
-        int ny = (app->graph->nodes[i].position.y + app->camera.position.y) *
-                     app->camera.zoom +
-                 (float)app->window_height / 2;
+          if (!source->visible || !target->visible)
+            continue;
 
-        if (sqrt(pow(app->mouse_position.x - nx, 2) +
-                 pow(app->mouse_position.y - ny, 2)) <= 5 * app->camera.zoom) {
-          app->hovered_node = i;
-          break;
+          int x1 =
+              (source->position.x + app->camera.position.x) * app->camera.zoom +
+              left_menu_width + (float)graph_width / 2;
+          int y1 =
+              (source->position.y + app->camera.position.y) * app->camera.zoom +
+              (float)app->window_height / 2;
+          int x2 =
+              (target->position.x + app->camera.position.x) * app->camera.zoom +
+              left_menu_width + (float)graph_width / 2;
+          int y2 =
+              (target->position.y + app->camera.position.y) * app->camera.zoom +
+              (float)app->window_height / 2;
+
+          float d = fabs((y2 - y1) * app->mouse_position.x -
+                         (x2 - x1) * app->mouse_position.y + x2 * y1 - y2 * x1) /
+                    sqrt(pow(y2 - y1, 2) + pow(x2 - x1, 2));
+
+          if (d <= 5 * app->camera.zoom &&
+              app->mouse_position.x >= fmin(x1, x2) - 5 * app->camera.zoom &&
+              app->mouse_position.x <= fmax(x1, x2) + 5 * app->camera.zoom &&
+              app->mouse_position.y >= fmin(y1, y2) - 5 * app->camera.zoom &&
+              app->mouse_position.y <= fmax(y1, y2) + 5 * app->camera.zoom) {
+            app->hovered_edge = i;
+            break;
+          }
         }
       }
-    }
 
-    // Check for edge hover (in graph area)
-    if (app->hovered_node == -1 && app->right_menu_hovered_item == -1 &&
-        app->mouse_position.x >= left_menu_width &&
-        app->mouse_position.x < right_menu_x) {
-      for (int i = 0; i < app->graph->edge_count; i++) {
-        GraphNode *source = &app->graph->nodes[app->graph->edges[i].source];
-        GraphNode *target = &app->graph->nodes[app->graph->edges[i].target];
-
-        if (!source->visible || !target->visible)
-          continue;
-
-        int x1 =
-            (source->position.x + app->camera.position.x) * app->camera.zoom +
-            left_menu_width + (float)graph_width / 2;
-        int y1 =
-            (source->position.y + app->camera.position.y) * app->camera.zoom +
-            (float)app->window_height / 2;
-        int x2 =
-            (target->position.x + app->camera.position.x) * app->camera.zoom +
-            left_menu_width + (float)graph_width / 2;
-        int y2 =
-            (target->position.y + app->camera.position.y) * app->camera.zoom +
-            (float)app->window_height / 2;
-
-        float d = fabs((y2 - y1) * app->mouse_position.x -
-                       (x2 - x1) * app->mouse_position.y + x2 * y1 - y2 * x1) /
-                  sqrt(pow(y2 - y1, 2) + pow(x2 - x1, 2));
-
-        if (d <= 5 * app->camera.zoom &&
-            app->mouse_position.x >= fmin(x1, x2) - 5 * app->camera.zoom &&
-            app->mouse_position.x <= fmax(x1, x2) + 5 * app->camera.zoom &&
-            app->mouse_position.y >= fmin(y1, y2) - 5 * app->camera.zoom &&
-            app->mouse_position.y <= fmax(y1, y2) + 5 * app->camera.zoom) {
-          app->hovered_edge = i;
-          break;
-        }
+      if (event->motion.state & SDL_BUTTON_LMASK) {
+        app->camera.position.x += event->motion.xrel / app->camera.zoom;
+        app->camera.position.y += event->motion.yrel / app->camera.zoom;
       }
-    }
-
-    if (event->motion.state & SDL_BUTTON_LMASK) {
-      app->camera.position.x += event->motion.xrel / app->camera.zoom;
-      app->camera.position.y += event->motion.yrel / app->camera.zoom;
     }
     break;
 
@@ -1083,29 +1106,56 @@ void handle_input(SDL_Event *event, AppState *app) {
         app->filter_referenced = !app->filter_referenced;
         update_node_visibility(app);
       } else if (x >= app->window_width - right_menu_width) {
-        // Clicking in the right menu
-        int y_offset = SEARCH_BAR_HEIGHT + 10 - app->right_scroll_position;
-        int nodes_rendered = 0;
-        for (int i = 0; i < app->graph->node_count; i++) {
-          if (app->graph->nodes[i].visible) {
-            if (y >= y_offset && y < y_offset + 20) {
-              set_node_selection(app, i);
-              break;
+        // Check if clicking on right scrollbar
+        SDL_Rect right_scrollbar = render_scrollbar(NULL, app->window_width - 15, SEARCH_BAR_HEIGHT + 10,
+                                                    app->window_height - SEARCH_BAR_HEIGHT - 20,
+                                                    app->visible_nodes_count * 20,
+                                                    app->window_height - SEARCH_BAR_HEIGHT - 20,
+                                                    app->right_scroll_position);
+        if (x >= right_scrollbar.x && x <= right_scrollbar.x + right_scrollbar.w &&
+            y >= right_scrollbar.y && y <= right_scrollbar.y + right_scrollbar.h) {
+          app->is_dragging_right_scrollbar = 1;
+          app->drag_start_y = y;
+          app->drag_start_scroll = app->right_scroll_position;
+        } else {
+          // Clicking in the right menu
+          int y_offset = SEARCH_BAR_HEIGHT + 10 - app->right_scroll_position;
+          int nodes_rendered = 0;
+          for (int i = 0; i < app->graph->node_count; i++) {
+            if (app->graph->nodes[i].visible) {
+              if (y >= y_offset && y < y_offset + 20) {
+                set_node_selection(app, i);
+                break;
+              }
+              y_offset += 20;
+              nodes_rendered++;
             }
-            y_offset += 20;
-            nodes_rendered++;
           }
         }
       } else if (x < left_menu_width && y > app->window_height - app->window_height * 0.4) {
-        // Clicking in the left menu's "Selected Objects" section
-        int y_offset = app->window_height - app->window_height * 0.4 + 50 - app->left_scroll_position;
-        for (int i = 0; i < app->graph->node_count; i++) {
-          if (app->selected_nodes[i] && app->graph->nodes[i].visible) {
-            if (y >= y_offset && y < y_offset + 20) {
-              set_node_selection(app, i);
-              break;
+        // Check if clicking on left scrollbar
+        SDL_Rect left_scrollbar = render_scrollbar(NULL, left_menu_width - 15,
+                                                   app->window_height - app->window_height * 0.4 + 50,
+                                                   app->window_height * 0.4 - 50,
+                                                   app->visible_nodes_count * 20,
+                                                   app->window_height * 0.4 - 50,
+                                                   app->left_scroll_position);
+        if (x >= left_scrollbar.x && x <= left_scrollbar.x + left_scrollbar.w &&
+            y >= left_scrollbar.y && y <= left_scrollbar.y + left_scrollbar.h) {
+          app->is_dragging_left_scrollbar = 1;
+          app->drag_start_y = y;
+          app->drag_start_scroll = app->left_scroll_position;
+        } else {
+          // Clicking in the left menu's "Selected Objects" section
+          int y_offset = app->window_height - app->window_height * 0.4 + 50 - app->left_scroll_position;
+          for (int i = 0; i < app->graph->node_count; i++) {
+            if (app->selected_nodes[i] && app->graph->nodes[i].visible) {
+              if (y >= y_offset && y < y_offset + 20) {
+                set_node_selection(app, i);
+                break;
+              }
+              y_offset += 20;
             }
-            y_offset += 20;
           }
         }
       } else {
@@ -1116,6 +1166,13 @@ void handle_input(SDL_Event *event, AppState *app) {
           set_edge_selection(app, app->hovered_edge);
         }
       }
+    }
+    break;
+
+  case SDL_MOUSEBUTTONUP:
+    if (event->button.button == SDL_BUTTON_LEFT) {
+      app->is_dragging_left_scrollbar = 0;
+      app->is_dragging_right_scrollbar = 0;
     }
     break;
 
@@ -1204,6 +1261,11 @@ void initialize_app(AppState *app, const char *graph_file) {
 
   app->hovered_edge = -1;
   app->hovered_node = -1;
+
+  app->is_dragging_left_scrollbar = 0;
+  app->is_dragging_right_scrollbar = 0;
+  app->drag_start_y = 0;
+  app->drag_start_scroll = 0;
 
   app->font_small = TTF_OpenFont("lemon.ttf", 15);
   app->font_medium = TTF_OpenFont("lemon.ttf", 30);
