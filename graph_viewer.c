@@ -1224,6 +1224,11 @@ void handle_input(SDL_Event *event, AppState *app) {
         update_node_visibility(app);
       }
       break;
+    case SDLK_m:
+      if (event->key.keysym.mod & KMOD_CTRL) {
+        cycle_selection_mode(app);
+      }
+      break;
     case SDLK_PAGEUP:
     case SDLK_PAGEDOWN:
     case SDLK_HOME:
