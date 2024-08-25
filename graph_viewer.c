@@ -1258,6 +1258,7 @@ void handle_input(SDL_Event *event, AppState *app) {
       app->window_width = event->window.data1;
       app->window_height = event->window.data2;
       app->nodes_per_page = (app->window_height - SEARCH_BAR_HEIGHT - 20) / 20;
+      update_open_button_position(app);
     }
     break;
   }
@@ -1316,6 +1317,7 @@ void initialize_app(AppState *app, const char *graph_file) {
 
   int left_menu_width = get_left_menu_width(app->window_width);
   app->open_button = (SDL_Rect){left_menu_width + 10, 5, OPEN_BUTTON_WIDTH, TOP_BAR_HEIGHT - 10};
+  update_open_button_position(app);
 }
 
 void render_top_bar(SDL_Renderer *renderer, AppState *app) {
@@ -1335,6 +1337,16 @@ void render_top_bar(SDL_Renderer *renderer, AppState *app) {
 
   // Render "apaz's heap viewer" text
   render_label(renderer, "apaz's heap viewer", left_menu_width + graph_width - 200, 10, app->font_small, (SDL_Color){0, 255, 0, 255}, 190);
+}
+
+void update_open_button_position(AppState *app) {
+  int left_menu_width = get_left_menu_width(app->window_width);
+  app->open_button = (SDL_Rect){
+    left_menu_width + 10,
+    5,
+    OPEN_BUTTON_WIDTH,
+    TOP_BAR_HEIGHT - 10
+  };
 }
 
 void cleanup_app(AppState *app) {
