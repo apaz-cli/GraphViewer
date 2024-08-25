@@ -1,5 +1,6 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
+#include <SDL2/SDL_events.h>
 #include <dirent.h>
 #include <sys/stat.h>
 #include <string.h>
