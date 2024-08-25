@@ -1213,6 +1213,26 @@ void handle_input(SDL_Event *event, AppState *app) {
                            app->visible_nodes_count, app->nodes_per_page, 20 * app->nodes_per_page);
       }
       break;
+    case SDLK_HOME:
+      if (app->mouse_position.x > app->window_width - right_menu_width) {
+        app->right_scroll_position = 0;
+      } else if (app->mouse_position.x < left_menu_width &&
+                 app->mouse_position.y >
+                     app->window_height - app->window_height * 0.4) {
+        app->left_scroll_position = 0;
+      }
+      break;
+    case SDLK_END:
+      if (app->mouse_position.x > app->window_width - right_menu_width) {
+        app->right_scroll_position = (app->visible_nodes_count - app->nodes_per_page) * 20;
+        app->right_scroll_position = fmax(0, app->right_scroll_position);
+      } else if (app->mouse_position.x < left_menu_width &&
+                 app->mouse_position.y >
+                     app->window_height - app->window_height * 0.4) {
+        app->left_scroll_position = (app->visible_nodes_count - app->nodes_per_page) * 20;
+        app->left_scroll_position = fmax(0, app->left_scroll_position);
+      }
+      break;
     }
     break;
 
