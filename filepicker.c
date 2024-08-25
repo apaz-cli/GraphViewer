@@ -8,10 +8,11 @@
 
 #define MAX_PATH_LENGTH 1024
 #define MAX_FILES 1000
-#define WINDOW_WIDTH 800
-#define WINDOW_HEIGHT 600
 #define ITEM_HEIGHT 30
-#define ITEMS_PER_PAGE ((WINDOW_HEIGHT - 100) / ITEM_HEIGHT)
+
+int WINDOW_WIDTH = 800;
+int WINDOW_HEIGHT = 600;
+int ITEMS_PER_PAGE;
 
 typedef struct {
     char name[256];
@@ -28,6 +29,8 @@ typedef struct {
     int selected;
     char current_path[MAX_PATH_LENGTH];
     char filter[256];
+    int window_width;
+    int window_height;
 } FileList;
 
 // Function prototypes
@@ -39,9 +42,9 @@ void handle_events(SDL_Event* event, FileList* list, int* quit, char** result);
 char* format_size(off_t size);
 char* format_time(time_t t);
 
-char* show_file_picker(SDL_Renderer* renderer, TTF_Font* font) {
+char* show_file_picker(SDL_Renderer* renderer, TTF_Font* font, SDL_Window* window) {
     FileList file_list;
-    init_file_list(&file_list);
+    init_file_list(&file_list, WINDOW_WIDTH, WINDOW_HEIGHT);
 
     SDL_Event event;
     int quit = 0;
@@ -49,7 +52,7 @@ char* show_file_picker(SDL_Renderer* renderer, TTF_Font* font) {
 
     while (!quit) {
         while (SDL_PollEvent(&event)) {
-            handle_events(&event, &file_list, &quit, &result);
+            handle_events(&event, &file_list, &quit, &result, window);
         }
 
         SDL_SetRenderDrawColor(renderer, 240, 240, 240, 255);
@@ -63,12 +66,14 @@ char* show_file_picker(SDL_Renderer* renderer, TTF_Font* font) {
     return result;
 }
 
-void init_file_list(FileList* list) {
+void init_file_list(FileList* list, int window_width, int window_height) {
     list->count = 0;
     list->scroll_offset = 0;
     list->selected = 0;
     strcpy(list->current_path, ".");
     strcpy(list->filter, "*");
+    list->window_width = window_width;
+    list->window_height = window_height;
     update_file_list(list);
 }
 
@@ -130,11 +135,14 @@ void draw_file_list(SDL_Renderer* renderer, TTF_Font* font, FileList* list) {
     SDL_FreeSurface(path_surface);
     SDL_DestroyTexture(path_texture);
 
+    // Calculate ITEMS_PER_PAGE based on current window height
+    int ITEMS_PER_PAGE = (list->window_height - 100) / ITEM_HEIGHT;
+
     // Draw file list
     for (int i = 0; i < ITEMS_PER_PAGE && i + list->scroll_offset < list->count; i++) {
         FileEntry* file = &list->entries[i + list->scroll_offset];
         
-        SDL_Rect item_rect = {10, 50 + i * ITEM_HEIGHT, WINDOW_WIDTH - 20, ITEM_HEIGHT};
+        SDL_Rect item_rect = {10, 50 + i * ITEM_HEIGHT, list->window_width - 20, ITEM_HEIGHT};
         
         if (i + list->scroll_offset == list->selected) {
             SDL_SetRenderDrawColor(renderer, highlight_color.r, highlight_color.g, highlight_color.b, highlight_color.a);
@@ -158,15 +166,15 @@ void draw_file_list(SDL_Renderer* renderer, TTF_Font* font, FileList* list) {
 
     // Draw scrollbar if necessary
     if (list->count > ITEMS_PER_PAGE) {
-        int scrollbar_height = (WINDOW_HEIGHT - 100) * ITEMS_PER_PAGE / list->count;
-        int scrollbar_y = 50 + (WINDOW_HEIGHT - 100) * list->scroll_offset / list->count;
-        SDL_Rect scrollbar = {WINDOW_WIDTH - 20, scrollbar_y, 10, scrollbar_height};
+        int scrollbar_height = (list->window_height - 100) * ITEMS_PER_PAGE / list->count;
+        int scrollbar_y = 50 + (list->window_height - 100) * list->scroll_offset / list->count;
+        SDL_Rect scrollbar = {list->window_width - 20, scrollbar_y, 10, scrollbar_height};
         SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
         SDL_RenderFillRect(renderer, &scrollbar);
     }
 }
 
-void handle_events(SDL_Event* event, FileList* list, int* quit, char** result) {
+void handle_events(SDL_Event* event, FileList* list, int* quit, char** result, SDL_Window* window) {
     switch (event->type) {
         case SDL_QUIT:
             *quit = 1;
@@ -222,6 +230,13 @@ void handle_events(SDL_Event* event, FileList* list, int* quit, char** result) {
                 list->scroll_offset++;
             }
             break;
+        case SDL_WINDOWEVENT:
+            if (event->window.event == SDL_WINDOWEVENT_RESIZED) {
+                list->window_width = event->window.data1;
+                list->window_height = event->window.data2;
+                SDL_GetWindowSize(window, &WINDOW_WIDTH, &WINDOW_HEIGHT);
+            }
+            break;
     }
 }
 
@@ -258,7 +273,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    SDL_Window* window = SDL_CreateWindow("File Picker", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
+    SDL_Window* window = SDL_CreateWindow("File Picker", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
     if (window == NULL) {
         SDL_Log("Window could not be created! SDL_Error: %s\n", SDL_GetError());
         return 1;
@@ -276,7 +291,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    char* selected_file = show_file_picker(renderer, font);
+    char* selected_file = show_file_picker(renderer, font, window);
 
     if (selected_file != NULL) {
         SDL_Log("Selected file: %s", selected_file);
