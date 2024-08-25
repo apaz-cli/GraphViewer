@@ -142,7 +142,7 @@ void draw_file_list(SDL_Renderer* renderer, TTF_Font* font, FileList* list) {
     for (int i = 0; i < ITEMS_PER_PAGE && i + list->scroll_offset < list->count; i++) {
         FileEntry* file = &list->entries[i + list->scroll_offset];
         
-        SDL_Rect item_rect = {10, 50 + i * ITEM_HEIGHT, list->window_width - 20, ITEM_HEIGHT};
+        SDL_Rect item_rect = {10, 50 + i * ITEM_HEIGHT, 780, ITEM_HEIGHT};  // Fixed width of 780
         
         if (i + list->scroll_offset == list->selected) {
             SDL_SetRenderDrawColor(renderer, highlight_color.r, highlight_color.g, highlight_color.b, highlight_color.a);
