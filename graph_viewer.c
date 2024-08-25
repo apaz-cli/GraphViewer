@@ -1082,30 +1082,30 @@ void handle_input(SDL_Event *event, AppState *app) {
       } else if (x >= 10 && x <= left_menu_width - 10 && y >= 50 && y <= 80) {
         app->filter_referenced = !app->filter_referenced;
         update_node_visibility(app);
-      } else if (x >= app->window_width - right_menu_width ||
-                 x < left_menu_width) {
-        // Clicking in the right menu or left menu
-        int menu_x = (x >= app->window_width - right_menu_width)
-                         ? app->window_width - right_menu_width
-                         : 0;
-        int menu_width = (x >= app->window_width - right_menu_width)
-                             ? right_menu_width
-                             : left_menu_width;
-        int scroll_position = (x >= app->window_width - right_menu_width)
-                                  ? app->right_scroll_position
-                                  : app->left_scroll_position;
-        int y_offset = SEARCH_BAR_HEIGHT + 10 - scroll_position;
+      } else if (x >= app->window_width - right_menu_width) {
+        // Clicking in the right menu
+        int y_offset = SEARCH_BAR_HEIGHT + 10 - app->right_scroll_position;
         int nodes_rendered = 0;
         for (int i = 0; i < app->graph->node_count; i++) {
-          if (app->graph->nodes[i].visible &&
-              ((x >= app->window_width - right_menu_width) ||
-               app->selected_nodes[i])) {
+          if (app->graph->nodes[i].visible) {
             if (y >= y_offset && y < y_offset + 20) {
               set_node_selection(app, i);
               break;
             }
             y_offset += 20;
             nodes_rendered++;
+          }
+        }
+      } else if (x < left_menu_width && y > app->window_height - app->window_height * 0.4) {
+        // Clicking in the left menu's "Selected Objects" section
+        int y_offset = app->window_height - app->window_height * 0.4 + 50 - app->left_scroll_position;
+        for (int i = 0; i < app->graph->node_count; i++) {
+          if (app->selected_nodes[i] && app->graph->nodes[i].visible) {
+            if (y >= y_offset && y < y_offset + 20) {
+              set_node_selection(app, i);
+              break;
+            }
+            y_offset += 20;
           }
         }
       } else {
