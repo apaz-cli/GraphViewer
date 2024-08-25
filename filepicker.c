@@ -3,6 +3,7 @@
 #include <dirent.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #define MAX_FILES 100
 #define MAX_PATH 1024
