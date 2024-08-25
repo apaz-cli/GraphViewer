@@ -82,7 +82,7 @@ void cleanup() {
     SDL_Quit();
 }
 
-void load_directory() {
+void load_directory(FilePicker* picker) {
     DIR* dir;
     struct dirent* ent;
     struct stat st;
@@ -186,33 +186,33 @@ void render_file_picker() {
     SDL_RenderPresent(app.renderer);
 }
 
-void handle_key_event(SDL_KeyboardEvent* event) {
+void handle_key_event(SDL_KeyboardEvent* event, FilePicker* picker) {
     if (event->type == SDL_KEYDOWN) {
-        if (picker.searchbar_active) {
-            if (event->keysym.sym == SDLK_BACKSPACE && strlen(picker.search) > 0) {
-                picker.search[strlen(picker.search) - 1] = '\0';
-                load_directory();
+        if (picker->searchbar_active) {
+            if (event->keysym.sym == SDLK_BACKSPACE && strlen(picker->search) > 0) {
+                picker->search[strlen(picker->search) - 1] = '\0';
+                load_directory(picker);
             } else if (event->keysym.sym == SDLK_RETURN) {
-                picker.searchbar_active = 0;
+                picker->searchbar_active = 0;
             }
         } else {
             switch (event->keysym.sym) {
                 case SDLK_UP:
-                    if (picker.selected > 0) picker.selected--;
+                    if (picker->selected > 0) picker->selected--;
                     break;
                 case SDLK_DOWN:
-                    if (picker.selected < picker.count - 1) picker.selected++;
+                    if (picker->selected < picker->count - 1) picker->selected++;
                     break;
                 case SDLK_RETURN:
-                    if (picker.entries[picker.selected].is_dir) {
-                        if (strcmp(picker.entries[picker.selected].name, "..") == 0) {
-                            char* last_slash = strrchr(picker.current_path, '/');
+                    if (picker->entries[picker->selected].is_dir) {
+                        if (strcmp(picker->entries[picker->selected].name, "..") == 0) {
+                            char* last_slash = strrchr(picker->current_path, '/');
                             if (last_slash) *last_slash = '\0';
                         } else {
-                            strcat(picker.current_path, "/");
-                            strcat(picker.current_path, picker.entries[picker.selected].name);
+                            strcat(picker->current_path, "/");
+                            strcat(picker->current_path, picker->entries[picker->selected].name);
                         }
-                        load_directory();
+                        load_directory(picker);
                     }
                     break;
                 case SDLK_ESCAPE:
@@ -225,43 +225,44 @@ void handle_key_event(SDL_KeyboardEvent* event) {
     }
 }
 
-void handle_text_input(SDL_TextInputEvent* event) {
-    if (picker.searchbar_active && strlen(picker.search) < sizeof(picker.search) - 1) {
-        strcat(picker.search, event->text);
-        load_directory();
+void handle_text_input(SDL_TextInputEvent* event, FilePicker* picker) {
+    if (picker->searchbar_active && strlen(picker->search) < sizeof(picker->search) - 1) {
+        strcat(picker->search, event->text);
+        load_directory(picker);
     }
 }
 
-void handle_mouse_wheel(SDL_MouseWheelEvent* event) {
-    picker.scroll -= event->y * SCROLL_SPEED;
-    if (picker.scroll < 0) picker.scroll = 0;
-    int max_scroll = picker.count - (SDL_GetWindowSurface(window)->h - SEARCHBAR_HEIGHT) / (FONT_SIZE + 5);
-    if (picker.scroll > max_scroll) picker.scroll = max_scroll;
+void handle_mouse_wheel(SDL_MouseWheelEvent* event, FilePicker* picker, SDL_Window* window) {
+    picker->scroll -= event->y * SCROLL_SPEED;
+    if (picker->scroll < 0) picker->scroll = 0;
+    int max_scroll = picker->count - (SDL_GetWindowSurface(window)->h - SEARCHBAR_HEIGHT) / (FONT_SIZE + 5);
+    if (picker->scroll > max_scroll) picker->scroll = max_scroll;
 }
 
-void handle_mouse_button(SDL_MouseButtonEvent* event) {
+void handle_mouse_button(SDL_MouseButtonEvent* event, FilePicker* picker) {
     if (event->type == SDL_MOUSEBUTTONDOWN) {
         int x = event->x;
         int y = event->y;
 
         if (y < SEARCHBAR_HEIGHT) {
-            picker.searchbar_active = 1;
+            picker->searchbar_active = 1;
         } else {
-            picker.searchbar_active = 0;
-            int selected = (y - SEARCHBAR_HEIGHT) / (FONT_SIZE + 5) + picker.scroll;
-            if (selected >= 0 && selected < picker.count) {
-                picker.selected = selected;
+            picker->searchbar_active = 0;
+            int selected = (y - SEARCHBAR_HEIGHT) / (FONT_SIZE + 5) + picker->scroll;
+            if (selected >= 0 && selected < picker->count) {
+                picker->selected = selected;
             }
         }
     }
 }
 
 char* run_file_picker(const char* initial_path) {
+    FilePicker picker;
     strcpy(picker.current_path, initial_path);
     memset(picker.search, 0, sizeof(picker.search));
     picker.searchbar_active = 0;
 
-    load_directory();
+    load_directory(&picker);
 
     SDL_StartTextInput();
 
@@ -275,16 +276,16 @@ char* run_file_picker(const char* initial_path) {
                     running = 0;
                     break;
                 case SDL_KEYDOWN:
-                    handle_key_event(&event.key);
+                    handle_key_event(&event.key, &picker);
                     break;
                 case SDL_TEXTINPUT:
-                    handle_text_input(&event.text);
+                    handle_text_input(&event.text, &picker);
                     break;
                 case SDL_MOUSEWHEEL:
-                    handle_mouse_wheel(&event.wheel);
+                    handle_mouse_wheel(&event.wheel, &picker, app.window);
                     break;
                 case SDL_MOUSEBUTTONDOWN:
-                    handle_mouse_button(&event.button);
+                    handle_mouse_button(&event.button, &picker);
                     break;
             }
         }
