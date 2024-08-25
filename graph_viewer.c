@@ -1429,37 +1429,29 @@ const char* handle_open_button_click(void) {
     CFRelease(fileTypes);
 
 #elif defined(__linux__)
-    // Linux implementation
-    GtkWidget *dialog;
-    GtkFileChooserAction action = GTK_FILE_CHOOSER_ACTION_OPEN;
-    gint res;
-
-    gtk_init(NULL, NULL);
-    dialog = gtk_file_chooser_dialog_new("Open File",
-                                         NULL,
-                                         action,
-                                         "_Cancel",
-                                         GTK_RESPONSE_CANCEL,
-                                         "_Open",
-                                         GTK_RESPONSE_ACCEPT,
-                                         NULL);
-
-    GtkFileFilter *filter = gtk_file_filter_new();
-    gtk_file_filter_set_name(filter, "JSON files");
-    gtk_file_filter_add_pattern(filter, "*.json");
-    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filter);
-
-    res = gtk_dialog_run(GTK_DIALOG(dialog));
-    if (res == GTK_RESPONSE_ACCEPT) {
-        char *filename;
-        GtkFileChooser *chooser = GTK_FILE_CHOOSER(dialog);
-        filename = gtk_file_chooser_get_filename(chooser);
-        strncpy(selected_file, filename, sizeof(selected_file) - 1);
-        g_free(filename);
+    // Linux implementation using zenity
+    FILE *fp;
+    char command[256];
+    snprintf(command, sizeof(command), "zenity --file-selection --file-filter='*.json' --title='Select a JSON file'");
+    
+    fp = popen(command, "r");
+    if (fp == NULL) {
+        fprintf(stderr, "Failed to run zenity command\n");
+        return NULL;
     }
 
-    gtk_widget_destroy(dialog);
-    while (gtk_events_pending()) gtk_main_iteration();
+    if (fgets(selected_file, sizeof(selected_file) - 1, fp) != NULL) {
+        // Remove newline character if present
+        size_t len = strlen(selected_file);
+        if (len > 0 && selected_file[len-1] == '\n') {
+            selected_file[len-1] = '\0';
+        }
+    } else {
+        // No file selected
+        selected_file[0] = '\0';
+    }
+
+    pclose(fp);
 
 #elif defined(_WIN32)
     // Windows implementation
