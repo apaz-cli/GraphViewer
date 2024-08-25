@@ -23,6 +23,11 @@
 #define SEARCH_BAR_HEIGHT 30
 #define MAX_SEARCH_LENGTH 4096
 #define RAND_XY_INIT_RANGE 500
+#define TOP_BAR_HEIGHT 40
+#define OPEN_BUTTON_WIDTH 100
+
+// Function prototype
+void render_top_bar(SDL_Renderer *renderer, AppState *app);
 
 #define LAYOUT_AREA_MULTIPLIER 1000
 #define FORCE_ITERATIONS 100
@@ -108,6 +113,7 @@ typedef struct {
   int is_dragging_right_scrollbar;
   int drag_start_y;
   int drag_start_scroll;
+  SDL_Rect open_button;
 } AppState;
 
 // Function declarations
@@ -1101,7 +1107,10 @@ void handle_input(SDL_Event *event, AppState *app) {
       int x = event->button.x;
       int y = event->button.y;
 
-      if (x >= 10 && x <= left_menu_width - 10 && y >= 10 && y <= 40) {
+      if (x >= app->open_button.x && x <= app->open_button.x + app->open_button.w &&
+          y >= app->open_button.y && y <= app->open_button.y + app->open_button.h) {
+        printf("Open button pressed\n");
+      } else if (x >= 10 && x <= left_menu_width - 10 && y >= 10 && y <= 40) {
         cycle_selection_mode(app);
       } else if (x >= 10 && x <= left_menu_width - 10 && y >= 50 && y <= 80) {
         app->filter_referenced = !app->filter_referenced;
@@ -1305,6 +1314,28 @@ void initialize_app(AppState *app, const char *graph_file) {
   }
 
   memset(app->search_bar.text, 0, MAX_SEARCH_LENGTH);
+
+  int left_menu_width = get_left_menu_width(app->window_width);
+  app->open_button = (SDL_Rect){left_menu_width + 10, 5, OPEN_BUTTON_WIDTH, TOP_BAR_HEIGHT - 10};
+}
+
+void render_top_bar(SDL_Renderer *renderer, AppState *app) {
+  int left_menu_width = get_left_menu_width(app->window_width);
+  int right_menu_width = get_right_menu_width(app->window_width);
+  int graph_width = get_graph_width(app->window_width);
+
+  // Render top bar background
+  SDL_Rect top_bar_rect = {left_menu_width, 0, graph_width, TOP_BAR_HEIGHT};
+  SDL_SetRenderDrawColor(renderer, 70, 70, 70, 255);
+  SDL_RenderFillRect(renderer, &top_bar_rect);
+
+  // Render open button
+  SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+  SDL_RenderFillRect(renderer, &app->open_button);
+  render_label(renderer, "Open", app->open_button.x + 5, app->open_button.y + 5, app->font_small, COLOR_WHITE, OPEN_BUTTON_WIDTH - 10);
+
+  // Render "apaz's heap viewer" text
+  render_label(renderer, "apaz's heap viewer", left_menu_width + graph_width - 200, 10, app->font_small, (SDL_Color){0, 255, 0, 255}, 190);
 }
 
 void cleanup_app(AppState *app) {
@@ -1383,6 +1414,7 @@ int run_graph_viewer(const char *graph_file) {
     render_graph(renderer, &app);
     render_left_menu(renderer, &app);
     render_right_menu(renderer, &app);
+    render_top_bar(renderer, &app);
 
     SDL_RenderPresent(renderer);
 
