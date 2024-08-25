@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #define MAX_PATH 1024
 #define MAX_FILES 1000
@@ -27,46 +28,56 @@ typedef struct {
     int searchbar_active;
 } FilePicker;
 
-SDL_Window* window = NULL;
-SDL_Renderer* renderer = NULL;
-TTF_Font* font = NULL;
-FilePicker picker;
+typedef struct {
+    SDL_Window* window;
+    SDL_Renderer* renderer;
+    TTF_Font* font;
+    FilePicker picker;
+} AppState;
 
-void init_sdl() {
+AppState app = {0};
+
+void log_error(const char* message) {
+    fprintf(stderr, "Error: %s\n", message);
+}
+
+int init_sdl() {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-        fprintf(stderr, "SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
-        exit(1);
+        log_error(SDL_GetError());
+        return 0;
     }
 
     if (TTF_Init() == -1) {
-        fprintf(stderr, "TTF_Init: %s\n", TTF_GetError());
-        exit(1);
+        log_error(TTF_GetError());
+        return 0;
     }
 
-    window = SDL_CreateWindow("File Picker", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 
-                              640, 480, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
-    if (window == NULL) {
-        fprintf(stderr, "Window could not be created! SDL_Error: %s\n", SDL_GetError());
-        exit(1);
+    app.window = SDL_CreateWindow("File Picker", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 
+                                  640, 480, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+    if (app.window == NULL) {
+        log_error(SDL_GetError());
+        return 0;
     }
 
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-    if (renderer == NULL) {
-        fprintf(stderr, "Renderer could not be created! SDL_Error: %s\n", SDL_GetError());
-        exit(1);
+    app.renderer = SDL_CreateRenderer(app.window, -1, SDL_RENDERER_ACCELERATED);
+    if (app.renderer == NULL) {
+        log_error(SDL_GetError());
+        return 0;
     }
 
-    font = TTF_OpenFont("lemon.ttf", FONT_SIZE);
-    if (font == NULL) {
-        fprintf(stderr, "Failed to load font! SDL_ttf Error: %s\n", TTF_GetError());
-        exit(1);
+    app.font = TTF_OpenFont("lemon.ttf", FONT_SIZE);
+    if (app.font == NULL) {
+        log_error(TTF_GetError());
+        return 0;
     }
+
+    return 1;
 }
 
 void cleanup() {
-    TTF_CloseFont(font);
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
+    if (app.font) TTF_CloseFont(app.font);
+    if (app.renderer) SDL_DestroyRenderer(app.renderer);
+    if (app.window) SDL_DestroyWindow(app.window);
     TTF_Quit();
     SDL_Quit();
 }
@@ -107,11 +118,26 @@ void load_directory() {
 }
 
 void render_text(const char* text, int x, int y, SDL_Color color) {
-    SDL_Surface* surface = TTF_RenderText_Solid(font, text, color);
-    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+    if (!app.font || !app.renderer) {
+        log_error("Font or renderer not initialized");
+        return;
+    }
+
+    SDL_Surface* surface = TTF_RenderText_Solid(app.font, text, color);
+    if (!surface) {
+        log_error(TTF_GetError());
+        return;
+    }
+
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(app.renderer, surface);
+    if (!texture) {
+        log_error(SDL_GetError());
+        SDL_FreeSurface(surface);
+        return;
+    }
     
     SDL_Rect rect = {x, y, surface->w, surface->h};
-    SDL_RenderCopy(renderer, texture, NULL, &rect);
+    SDL_RenderCopy(app.renderer, texture, NULL, &rect);
     
     SDL_FreeSurface(surface);
     SDL_DestroyTexture(texture);
@@ -119,45 +145,45 @@ void render_text(const char* text, int x, int y, SDL_Color color) {
 
 void render_file_picker() {
     int window_width, window_height;
-    SDL_GetWindowSize(window, &window_width, &window_height);
+    SDL_GetWindowSize(app.window, &window_width, &window_height);
 
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-    SDL_RenderClear(renderer);
+    SDL_SetRenderDrawColor(app.renderer, 255, 255, 255, 255);
+    SDL_RenderClear(app.renderer);
 
     // Render search bar
-    SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+    SDL_SetRenderDrawColor(app.renderer, 200, 200, 200, 255);
     SDL_Rect searchbar_rect = {0, 0, window_width, SEARCHBAR_HEIGHT};
-    SDL_RenderFillRect(renderer, &searchbar_rect);
+    SDL_RenderFillRect(app.renderer, &searchbar_rect);
 
     SDL_Color text_color = {0, 0, 0, 255};
-    render_text(picker.search, 10, 5, text_color);
+    render_text(app.picker.search, 10, 5, text_color);
 
     // Render file list
     int y = SEARCHBAR_HEIGHT;
-    for (int i = picker.scroll; i < picker.count && y < window_height - FONT_SIZE; i++) {
-        SDL_Color color = (i == picker.selected) ? (SDL_Color){255, 0, 0, 255} : (SDL_Color){0, 0, 0, 255};
+    for (int i = app.picker.scroll; i < app.picker.count && y < window_height - FONT_SIZE; i++) {
+        SDL_Color color = (i == app.picker.selected) ? (SDL_Color){255, 0, 0, 255} : (SDL_Color){0, 0, 0, 255};
         char display_name[256];
         snprintf(display_name, sizeof(display_name), "%s%s", 
-                 picker.entries[i].is_dir ? "[DIR] " : "", 
-                 picker.entries[i].name);
+                 app.picker.entries[i].is_dir ? "[DIR] " : "", 
+                 app.picker.entries[i].name);
         render_text(display_name, 10, y, color);
         y += FONT_SIZE + 5;
     }
 
     // Render scrollbar
-    int content_height = picker.count * (FONT_SIZE + 5);
+    int content_height = app.picker.count * (FONT_SIZE + 5);
     int visible_height = window_height - SEARCHBAR_HEIGHT;
     if (content_height > visible_height) {
-        float scroll_ratio = (float)picker.scroll / (picker.count - visible_height / (FONT_SIZE + 5));
+        float scroll_ratio = (float)app.picker.scroll / (app.picker.count - visible_height / (FONT_SIZE + 5));
         int scrollbar_height = (visible_height * visible_height) / content_height;
         int scrollbar_y = SEARCHBAR_HEIGHT + scroll_ratio * (visible_height - scrollbar_height);
 
-        SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+        SDL_SetRenderDrawColor(app.renderer, 200, 200, 200, 255);
         SDL_Rect scrollbar_rect = {window_width - SCROLLBAR_WIDTH, scrollbar_y, SCROLLBAR_WIDTH, scrollbar_height};
-        SDL_RenderFillRect(renderer, &scrollbar_rect);
+        SDL_RenderFillRect(app.renderer, &scrollbar_rect);
     }
 
-    SDL_RenderPresent(renderer);
+    SDL_RenderPresent(app.renderer);
 }
 
 void handle_key_event(SDL_KeyboardEvent* event) {
@@ -279,7 +305,10 @@ char* run_file_picker(const char* initial_path) {
 }
 
 int main(int argc, char* argv[]) {
-    init_sdl();
+    if (!init_sdl()) {
+        log_error("Failed to initialize SDL");
+        return 1;
+    }
 
     char* selected_file = run_file_picker(argc > 1 ? argv[1] : ".");
 
