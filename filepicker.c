@@ -3,142 +3,286 @@
 #include <dirent.h>
 #include <string.h>
 #include <stdlib.h>
-#include <unistd.h>
+#include <sys/stat.h>
+#include <time.h>
 
-#define MAX_FILES 100
-#define MAX_PATH 1024
+#define MAX_PATH_LENGTH 1024
+#define MAX_FILES 1000
+#define WINDOW_WIDTH 800
+#define WINDOW_HEIGHT 600
+#define ITEM_HEIGHT 30
+#define ITEMS_PER_PAGE ((WINDOW_HEIGHT - 100) / ITEM_HEIGHT)
 
 typedef struct {
     char name[256];
+    char full_path[MAX_PATH_LENGTH];
     int is_dir;
+    off_t size;
+    time_t modified_time;
 } FileEntry;
 
+typedef struct {
+    FileEntry entries[MAX_FILES];
+    int count;
+    int scroll_offset;
+    int selected;
+    char current_path[MAX_PATH_LENGTH];
+    char filter[256];
+} FileList;
+
+// Function prototypes
+void init_file_list(FileList* list);
+void update_file_list(FileList* list);
+int file_name_compare(const void* a, const void* b);
+void draw_file_list(SDL_Renderer* renderer, TTF_Font* font, FileList* list);
+void handle_events(SDL_Event* event, FileList* list, int* quit, char** result);
+char* format_size(off_t size);
+char* format_time(time_t t);
+
 char* show_file_picker(SDL_Renderer* renderer, TTF_Font* font) {
-    char current_dir[MAX_PATH];
-    getcwd(current_dir, sizeof(current_dir));
+    FileList file_list;
+    init_file_list(&file_list);
 
-    FileEntry files[MAX_FILES];
-    int file_count = 0;
-    int selected_index = 0;
-    char* selected_file = NULL;
-
-    SDL_Window* picker_window = SDL_CreateWindow("File Picker",
-        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 400, 300, 0);
-    SDL_Renderer* picker_renderer = SDL_CreateRenderer(picker_window, -1, SDL_RENDERER_ACCELERATED);
-
+    SDL_Event event;
     int quit = 0;
+    char* result = NULL;
+
     while (!quit) {
-        // Read directory contents
-        DIR* dir = opendir(current_dir);
-        file_count = 0;
-        if (dir) {
-            struct dirent* entry;
-            while ((entry = readdir(dir)) != NULL && file_count < MAX_FILES) {
-                strcpy(files[file_count].name, entry->d_name);
-                files[file_count].is_dir = (entry->d_type == DT_DIR);
-                file_count++;
-            }
-            closedir(dir);
-        }
-
-        // Handle events
-        SDL_Event event;
         while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_QUIT) {
-                quit = 1;
-            } else if (event.type == SDL_KEYDOWN) {
-                switch (event.key.keysym.sym) {
-                    case SDLK_UP:
-                        selected_index = (selected_index - 1 + file_count) % file_count;
-                        break;
-                    case SDLK_DOWN:
-                        selected_index = (selected_index + 1) % file_count;
-                        break;
-                    case SDLK_RETURN:
-                        if (files[selected_index].is_dir) {
-                            if (strcmp(files[selected_index].name, "..") == 0) {
-                                chdir("..");
-                            } else {
-                                chdir(files[selected_index].name);
-                            }
-                            getcwd(current_dir, sizeof(current_dir));
-                            selected_index = 0;
-                        } else {
-                            selected_file = malloc(MAX_PATH);
-                            snprintf(selected_file, MAX_PATH, "%s/%s", current_dir, files[selected_index].name);
-                            quit = 1;
-                        }
-                        break;
-                    case SDLK_ESCAPE:
-                        quit = 1;
-                        break;
-                }
-            }
+            handle_events(&event, &file_list, &quit, &result);
         }
 
-        // Render
-        SDL_SetRenderDrawColor(picker_renderer, 255, 255, 255, 255);
-        SDL_RenderClear(picker_renderer);
+        SDL_SetRenderDrawColor(renderer, 240, 240, 240, 255);
+        SDL_RenderClear(renderer);
 
-        SDL_Color text_color = {0, 0, 0, 255};
-        for (int i = 0; i < file_count; i++) {
-            SDL_Surface* surface = TTF_RenderText_Solid(font, files[i].name, text_color);
-            SDL_Texture* texture = SDL_CreateTextureFromSurface(picker_renderer, surface);
+        draw_file_list(renderer, font, &file_list);
 
-            SDL_Rect dest_rect = {10, 10 + i * 30, surface->w, surface->h};
-            SDL_RenderCopy(picker_renderer, texture, NULL, &dest_rect);
-
-            if (i == selected_index) {
-                SDL_SetRenderDrawColor(picker_renderer, 255, 0, 0, 255);
-                SDL_RenderDrawRect(picker_renderer, &dest_rect);
-            }
-
-            SDL_FreeSurface(surface);
-            SDL_DestroyTexture(texture);
-        }
-
-        SDL_RenderPresent(picker_renderer);
+        SDL_RenderPresent(renderer);
     }
 
-    SDL_DestroyRenderer(picker_renderer);
-    SDL_DestroyWindow(picker_window);
+    return result;
+}
 
-    return selected_file;
+void init_file_list(FileList* list) {
+    list->count = 0;
+    list->scroll_offset = 0;
+    list->selected = 0;
+    strcpy(list->current_path, ".");
+    strcpy(list->filter, "*");
+    update_file_list(list);
+}
+
+void update_file_list(FileList* list) {
+    DIR* dir = opendir(list->current_path);
+    if (dir == NULL) {
+        SDL_Log("Error opening directory: %s", list->current_path);
+        return;
+    }
+
+    list->count = 0;
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != NULL && list->count < MAX_FILES) {
+        if (strcmp(entry->d_name, ".") == 0) continue;
+
+        FileEntry* file = &list->entries[list->count];
+        strncpy(file->name, entry->d_name, 255);
+        snprintf(file->full_path, MAX_PATH_LENGTH, "%s/%s", list->current_path, file->name);
+
+        struct stat st;
+        if (stat(file->full_path, &st) == 0) {
+            file->is_dir = S_ISDIR(st.st_mode);
+            file->size = st.st_size;
+            file->modified_time = st.st_mtime;
+        } else {
+            file->is_dir = 0;
+            file->size = 0;
+            file->modified_time = 0;
+        }
+
+        if (strcmp(list->filter, "*") == 0 || 
+            (!file->is_dir && strstr(file->name, list->filter) != NULL)) {
+            list->count++;
+        }
+    }
+    closedir(dir);
+
+    qsort(list->entries, list->count, sizeof(FileEntry), file_name_compare);
+}
+
+int file_name_compare(const void* a, const void* b) {
+    FileEntry* fa = (FileEntry*)a;
+    FileEntry* fb = (FileEntry*)b;
+
+    if (fa->is_dir && !fb->is_dir) return -1;
+    if (!fa->is_dir && fb->is_dir) return 1;
+    return strcmp(fa->name, fb->name);
+}
+
+void draw_file_list(SDL_Renderer* renderer, TTF_Font* font, FileList* list) {
+    SDL_Color text_color = {0, 0, 0, 255};
+    SDL_Color highlight_color = {200, 200, 255, 255};
+
+    // Draw current path
+    SDL_Surface* path_surface = TTF_RenderText_Blended(font, list->current_path, text_color);
+    SDL_Texture* path_texture = SDL_CreateTextureFromSurface(renderer, path_surface);
+    SDL_Rect path_rect = {10, 10, path_surface->w, path_surface->h};
+    SDL_RenderCopy(renderer, path_texture, NULL, &path_rect);
+    SDL_FreeSurface(path_surface);
+    SDL_DestroyTexture(path_texture);
+
+    // Draw file list
+    for (int i = 0; i < ITEMS_PER_PAGE && i + list->scroll_offset < list->count; i++) {
+        FileEntry* file = &list->entries[i + list->scroll_offset];
+        
+        SDL_Rect item_rect = {10, 50 + i * ITEM_HEIGHT, WINDOW_WIDTH - 20, ITEM_HEIGHT};
+        
+        if (i + list->scroll_offset == list->selected) {
+            SDL_SetRenderDrawColor(renderer, highlight_color.r, highlight_color.g, highlight_color.b, highlight_color.a);
+            SDL_RenderFillRect(renderer, &item_rect);
+        }
+
+        char display_text[512];
+        char* size_str = format_size(file->size);
+        char* time_str = format_time(file->modified_time);
+        snprintf(display_text, sizeof(display_text), "%-30s %10s %20s %s", 
+                 file->name, file->is_dir ? "<DIR>" : size_str, time_str, file->is_dir ? "/" : "");
+        free(size_str);
+        free(time_str);
+
+        SDL_Surface* text_surface = TTF_RenderText_Blended(font, display_text, text_color);
+        SDL_Texture* text_texture = SDL_CreateTextureFromSurface(renderer, text_surface);
+        SDL_RenderCopy(renderer, text_texture, NULL, &item_rect);
+        SDL_FreeSurface(text_surface);
+        SDL_DestroyTexture(text_texture);
+    }
+
+    // Draw scrollbar if necessary
+    if (list->count > ITEMS_PER_PAGE) {
+        int scrollbar_height = (WINDOW_HEIGHT - 100) * ITEMS_PER_PAGE / list->count;
+        int scrollbar_y = 50 + (WINDOW_HEIGHT - 100) * list->scroll_offset / list->count;
+        SDL_Rect scrollbar = {WINDOW_WIDTH - 20, scrollbar_y, 10, scrollbar_height};
+        SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+        SDL_RenderFillRect(renderer, &scrollbar);
+    }
+}
+
+void handle_events(SDL_Event* event, FileList* list, int* quit, char** result) {
+    switch (event->type) {
+        case SDL_QUIT:
+            *quit = 1;
+            break;
+        case SDL_KEYDOWN:
+            switch (event->key.keysym.sym) {
+                case SDLK_UP:
+                    if (list->selected > 0) {
+                        list->selected--;
+                        if (list->selected < list->scroll_offset) {
+                            list->scroll_offset = list->selected;
+                        }
+                    }
+                    break;
+                case SDLK_DOWN:
+                    if (list->selected < list->count - 1) {
+                        list->selected++;
+                        if (list->selected >= list->scroll_offset + ITEMS_PER_PAGE) {
+                            list->scroll_offset = list->selected - ITEMS_PER_PAGE + 1;
+                        }
+                    }
+                    break;
+                case SDLK_RETURN: {
+                    FileEntry* selected_file = &list->entries[list->selected];
+                    if (selected_file->is_dir) {
+                        if (strcmp(selected_file->name, "..") == 0) {
+                            char* last_slash = strrchr(list->current_path, '/');
+                            if (last_slash != NULL) {
+                                *last_slash = '\0';
+                            }
+                        } else {
+                            strcat(list->current_path, "/");
+                            strcat(list->current_path, selected_file->name);
+                        }
+                        list->selected = 0;
+                        list->scroll_offset = 0;
+                        update_file_list(list);
+                    } else {
+                        *result = strdup(selected_file->full_path);
+                        *quit = 1;
+                    }
+                    break;
+                }
+                case SDLK_ESCAPE:
+                    *quit = 1;
+                    break;
+            }
+            break;
+        case SDL_MOUSEWHEEL:
+            if (event->wheel.y > 0 && list->scroll_offset > 0) {
+                list->scroll_offset--;
+            } else if (event->wheel.y < 0 && list->scroll_offset < list->count - ITEMS_PER_PAGE) {
+                list->scroll_offset++;
+            }
+            break;
+    }
+}
+
+char* format_size(off_t size) {
+    const char* units[] = {"B", "KB", "MB", "GB", "TB"};
+    int unit = 0;
+    double size_d = size;
+
+    while (size_d >= 1024 && unit < 4) {
+        size_d /= 1024;
+        unit++;
+    }
+
+    char* result = malloc(20);
+    snprintf(result, 20, "%.2f %s", size_d, units[unit]);
+    return result;
+}
+
+char* format_time(time_t t) {
+    char* result = malloc(20);
+    struct tm* tm_info = localtime(&t);
+    strftime(result, 20, "%Y-%m-%d %H:%M:%S", tm_info);
+    return result;
 }
 
 int main(int argc, char* argv[]) {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-        fprintf(stderr, "SDL initialization failed: %s\n", SDL_GetError());
+        SDL_Log("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
         return 1;
     }
 
     if (TTF_Init() < 0) {
-        fprintf(stderr, "SDL_ttf initialization failed: %s\n", TTF_GetError());
-        SDL_Quit();
+        SDL_Log("SDL_ttf could not initialize! SDL_ttf Error: %s\n", TTF_GetError());
         return 1;
     }
 
-    SDL_Window* window = SDL_CreateWindow("SDL2 File Picker Test",
-        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 640, 480, 0);
-    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    SDL_Window* window = SDL_CreateWindow("File Picker", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
+    if (window == NULL) {
+        SDL_Log("Window could not be created! SDL_Error: %s\n", SDL_GetError());
+        return 1;
+    }
 
-    TTF_Font* font = TTF_OpenFont("/path/to/your/font.ttf", 16);
-    if (!font) {
-        fprintf(stderr, "Failed to load font: %s\n", TTF_GetError());
-        SDL_DestroyRenderer(renderer);
-        SDL_DestroyWindow(window);
-        TTF_Quit();
-        SDL_Quit();
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    if (renderer == NULL) {
+        SDL_Log("Renderer could not be created! SDL_Error: %s\n", SDL_GetError());
+        return 1;
+    }
+
+    TTF_Font* font = TTF_OpenFont("lemon.ttf", 15);
+    if (font == NULL) {
+        SDL_Log("Failed to load font! SDL_ttf Error: %s\n", TTF_GetError());
         return 1;
     }
 
     char* selected_file = show_file_picker(renderer, font);
 
-    if (selected_file) {
-        printf("Selected file: %s\n", selected_file);
+    if (selected_file != NULL) {
+        SDL_Log("Selected file: %s", selected_file);
         free(selected_file);
     } else {
-        printf("No file selected.\n");
+        SDL_Log("No file selected");
     }
 
     TTF_CloseFont(font);
