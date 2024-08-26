@@ -1420,92 +1420,10 @@ static inline void update_open_button_position(AppState *app) {
   };
 }
 
-#ifdef __APPLE__
-#include <CoreFoundation/CoreFoundation.h>
-#endif
-
-#ifdef __linux__
-#include <stdio.h>
-#endif
-
-#ifdef _WIN32
-#include <windows.h>
-#include <commdlg.h>
-#endif
+#include "filepicker.h"
 
 static inline const char* handle_open_button_click(void) {
-    static char selected_file[1024] = {0};
-
-#ifdef __APPLE__
-    // macOS implementation
-    CFURLRef fileURL = NULL;
-    CFStringRef fileName = NULL;
-    CFURLRef dirURL = CFURLCreateWithFileSystemPath(NULL, CFSTR("."), kCFURLPOSIXPathStyle, true);
-    CFArrayRef fileTypes = CFArrayCreate(NULL, (const void*[]){CFSTR("json")}, 1, &kCFTypeArrayCallBacks);
-
-    CFOptionFlags dialogOptions = 0;
-    fileURL = CFUserNotificationCreateFileDialogRef(dirURL, dialogOptions, fileTypes, NULL, NULL);
-
-    if (fileURL != NULL) {
-        fileName = CFURLCopyLastPathComponent(fileURL);
-        CFStringGetCString(fileName, selected_file, sizeof(selected_file), kCFStringEncodingUTF8);
-        CFRelease(fileName);
-        CFRelease(fileURL);
-    }
-
-    CFRelease(dirURL);
-    CFRelease(fileTypes);
-
-#elif defined(__linux__)
-    // Linux implementation using zenity
-    FILE *fp;
-    char command[256];
-    snprintf(command, sizeof(command), "zenity --file-selection --file-filter='*.json' --title='Select a JSON file'");
-    
-    fp = popen(command, "r");
-    if (fp == NULL) {
-        fprintf(stderr, "Failed to run zenity command\n");
-        return NULL;
-    }
-
-    if (fgets(selected_file, sizeof(selected_file) - 1, fp) != NULL) {
-        // Remove newline character if present
-        size_t len = strlen(selected_file);
-        if (len > 0 && selected_file[len-1] == '\n') {
-            selected_file[len-1] = '\0';
-        }
-    } else {
-        // No file selected
-        selected_file[0] = '\0';
-    }
-
-    pclose(fp);
-
-#elif defined(_WIN32)
-    // Windows implementation
-    OPENFILENAME ofn;
-    ZeroMemory(&ofn, sizeof(ofn));
-    ofn.lStructSize = sizeof(ofn);
-    ofn.hwndOwner = NULL;
-    ofn.lpstrFile = selected_file;
-    ofn.lpstrFile[0] = '\0';
-    ofn.nMaxFile = sizeof(selected_file);
-    ofn.lpstrFilter = "JSON Files\0*.json\0All Files\0*.*\0";
-    ofn.nFilterIndex = 1;
-    ofn.lpstrFileTitle = NULL;
-    ofn.nMaxFileTitle = 0;
-    ofn.lpstrInitialDir = NULL;
-    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
-
-    if (GetOpenFileName(&ofn) == TRUE) {
-        // File selected
-    } else {
-        // No file selected or error
-        selected_file[0] = '\0';
-    }
-#endif
-
-    return selected_file[0] != '\0' ? selected_file : NULL;
+    return show_file_picker(NULL);
 }
 
 static inline void cleanup_app(AppState *app) {
