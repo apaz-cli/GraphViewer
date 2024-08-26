@@ -219,7 +219,7 @@ void render_file_picker(FilePicker* picker) {
     SDL_RenderFillRect(picker->renderer, &scrollbar_bg);
 
     if (picker->file_count > 0) {
-        int scrollbar_height = (picker->height - SEARCHBAR_HEIGHT) * (picker->height - SEARCHBAR_HEIGHT) / (picker->file_count * (FONT_SIZE + 4));
+        int scrollbar_height = (picker->height - SEARCHBAR_HEIGHT) * (picker->height - SEARCHBAR_HEIGHT) / (picker->file_count * (FONT_SIZE + 4) + 1);  // Add 1 to prevent division by zero
         int scrollbar_y = SEARCHBAR_HEIGHT;
         if (picker->scrollbar.max_position > 0) {
             scrollbar_y += (picker->height - SEARCHBAR_HEIGHT - scrollbar_height) * picker->scrollbar.position / picker->scrollbar.max_position;
@@ -250,6 +250,21 @@ void render_file_picker(FilePicker* picker) {
         SDL_FreeSurface(search_surface);
     } else {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to render search text: %s", TTF_GetError());
+    }
+
+    // Render "No files found" message if file_count is 0
+    if (picker->file_count == 0) {
+        const char* no_files_text = "No files found";
+        SDL_Surface* no_files_surface = TTF_RenderText_Solid(picker->font, no_files_text, text_color);
+        if (no_files_surface) {
+            SDL_Texture* no_files_texture = SDL_CreateTextureFromSurface(picker->renderer, no_files_surface);
+            if (no_files_texture) {
+                SDL_Rect no_files_dest = {(picker->width - no_files_surface->w) / 2, (picker->height - no_files_surface->h) / 2, no_files_surface->w, no_files_surface->h};
+                SDL_RenderCopy(picker->renderer, no_files_texture, NULL, &no_files_dest);
+                SDL_DestroyTexture(no_files_texture);
+            }
+            SDL_FreeSurface(no_files_surface);
+        }
     }
 
     SDL_RenderPresent(picker->renderer);
@@ -311,11 +326,19 @@ void handle_events(FilePicker* picker, SDL_Event* event, int* quit, char** selec
 void update_scroll(FilePicker* picker) {
     int total_height = picker->file_count * (FONT_SIZE + 4);
     int visible_height = picker->height - SEARCHBAR_HEIGHT;
-    picker->scrollbar.max_position = (total_height > visible_height) ? (total_height - visible_height) : 0;
-    picker->scrollbar.size = (visible_height * visible_height) / total_height;
-    picker->scrollbar.position = picker->selected_index * (FONT_SIZE + 4);
-    if (picker->scrollbar.position > picker->scrollbar.max_position)
-        picker->scrollbar.position = picker->scrollbar.max_position;
+    
+    if (total_height > 0 && visible_height > 0) {
+        picker->scrollbar.max_position = (total_height > visible_height) ? (total_height - visible_height) : 0;
+        picker->scrollbar.size = (visible_height * visible_height) / total_height;
+        picker->scrollbar.position = picker->selected_index * (FONT_SIZE + 4);
+        if (picker->scrollbar.position > picker->scrollbar.max_position)
+            picker->scrollbar.position = picker->scrollbar.max_position;
+    } else {
+        // Reset scrollbar when there are no files
+        picker->scrollbar.max_position = 0;
+        picker->scrollbar.size = visible_height;
+        picker->scrollbar.position = 0;
+    }
 }
 
 char* show_file_picker(const char* initial_dir) {
