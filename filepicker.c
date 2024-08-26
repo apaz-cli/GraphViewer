@@ -3,12 +3,14 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <math.h>
 
 #define MAX_PATH 1024
 #define MAX_FILES 1000
 #define FONT_SIZE 14
 #define SCROLLBAR_WIDTH 20
 #define SEARCHBAR_HEIGHT 30
+#define ITEM_HEIGHT (FONT_SIZE + 4)
 
 typedef struct {
     char name[MAX_PATH];
@@ -33,6 +35,9 @@ typedef struct {
     char search_text[MAX_PATH];
     int width;
     int height;
+    int scroll_offset;
+    int is_scrolling;
+    int items_per_page;
 } FilePicker;
 
 // Core functions
@@ -132,8 +137,12 @@ FilePicker* initialize_file_picker(const char* initial_dir) {
     picker->selected_index = 0;
     picker->search_text[0] = '\0';
     SDL_GetWindowSize(picker->window, &picker->width, &picker->height);
+    picker->scroll_offset = 0;
+    picker->is_scrolling = 0;
+    picker->items_per_page = (picker->height - SEARCHBAR_HEIGHT) / ITEM_HEIGHT;
 
     get_directory_contents(picker);
+    update_scroll(picker);
 
     return picker;
 }
@@ -189,9 +198,9 @@ void render_file_picker(FilePicker* picker) {
     SDL_Color highlight_color = {200, 200, 255, 255};
 
     int y = SEARCHBAR_HEIGHT;
-    for (int i = 0; i < picker->file_count; i++) {
+    for (int i = picker->scroll_offset; i < picker->file_count && i < picker->scroll_offset + picker->items_per_page; i++) {
         SDL_Color bg_color = (i == picker->selected_index) ? highlight_color : (SDL_Color){255, 255, 255, 255};
-        SDL_Rect bg_rect = {0, y, picker->width - SCROLLBAR_WIDTH, FONT_SIZE + 4};
+        SDL_Rect bg_rect = {0, y, picker->width - SCROLLBAR_WIDTH, ITEM_HEIGHT};
         SDL_SetRenderDrawColor(picker->renderer, bg_color.r, bg_color.g, bg_color.b, bg_color.a);
         SDL_RenderFillRect(picker->renderer, &bg_rect);
 
@@ -199,7 +208,7 @@ void render_file_picker(FilePicker* picker) {
         if (surface) {
             SDL_Texture* texture = SDL_CreateTextureFromSurface(picker->renderer, surface);
             if (texture) {
-                SDL_Rect dest = {5, y, surface->w, surface->h};
+                SDL_Rect dest = {5, y + (ITEM_HEIGHT - FONT_SIZE) / 2, surface->w, surface->h};
                 SDL_RenderCopy(picker->renderer, texture, NULL, &dest);
                 SDL_DestroyTexture(texture);
             } else {
@@ -210,7 +219,7 @@ void render_file_picker(FilePicker* picker) {
             SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to render text: %s", TTF_GetError());
         }
 
-        y += FONT_SIZE + 4;
+        y += ITEM_HEIGHT;
     }
 
     // Render scrollbar
@@ -218,13 +227,10 @@ void render_file_picker(FilePicker* picker) {
     SDL_SetRenderDrawColor(picker->renderer, 200, 200, 200, 255);
     SDL_RenderFillRect(picker->renderer, &scrollbar_bg);
 
-    if (picker->file_count > 0) {
-        int scrollbar_height = (picker->height - SEARCHBAR_HEIGHT) * (picker->height - SEARCHBAR_HEIGHT) / (picker->file_count * (FONT_SIZE + 4) + 1);  // Add 1 to prevent division by zero
-        int scrollbar_y = SEARCHBAR_HEIGHT;
-        if (picker->scrollbar.max_position > 0) {
-            scrollbar_y += (picker->height - SEARCHBAR_HEIGHT - scrollbar_height) * picker->scrollbar.position / picker->scrollbar.max_position;
-        }
-        SDL_Rect scrollbar = {picker->width - SCROLLBAR_WIDTH, scrollbar_y, SCROLLBAR_WIDTH, scrollbar_height};
+    if (picker->file_count > picker->items_per_page) {
+        float scrollbar_height = (float)(picker->height - SEARCHBAR_HEIGHT) * picker->items_per_page / picker->file_count;
+        float scrollbar_y = SEARCHBAR_HEIGHT + (picker->height - SEARCHBAR_HEIGHT - scrollbar_height) * picker->scroll_offset / (picker->file_count - picker->items_per_page);
+        SDL_Rect scrollbar = {picker->width - SCROLLBAR_WIDTH, (int)scrollbar_y, SCROLLBAR_WIDTH, (int)scrollbar_height};
         SDL_SetRenderDrawColor(picker->renderer, 100, 100, 100, 255);
         SDL_RenderFillRect(picker->renderer, &scrollbar);
     }
@@ -271,52 +277,131 @@ void render_file_picker(FilePicker* picker) {
 }
 
 void handle_events(FilePicker* picker, SDL_Event* event, int* quit, char** selected_file) {
+    int mouse_x, mouse_y;
+    SDL_GetMouseState(&mouse_x, &mouse_y);
+
     switch (event->type) {
         case SDL_QUIT:
             *quit = 1;
             break;
         case SDL_KEYDOWN:
-            if (event->key.keysym.sym == SDLK_UP) {
-                if (picker->selected_index > 0) picker->selected_index--;
-            } else if (event->key.keysym.sym == SDLK_DOWN) {
-                if (picker->selected_index < picker->file_count - 1) picker->selected_index++;
-            } else if (event->key.keysym.sym == SDLK_RETURN) {
-                if (picker->files[picker->selected_index].is_dir) {
-                    if (strcmp(picker->files[picker->selected_index].name, "..") == 0) {
-                        get_parent_directory(picker->current_dir);
-                    } else {
-                        char new_dir[MAX_PATH];
-                        snprintf(new_dir, MAX_PATH, "%s/%s", picker->current_dir, picker->files[picker->selected_index].name);
-                        strncpy(picker->current_dir, new_dir, MAX_PATH);
+            switch (event->key.keysym.sym) {
+                case SDLK_UP:
+                    if (picker->selected_index > 0) {
+                        picker->selected_index--;
+                        if (picker->selected_index < picker->scroll_offset) {
+                            picker->scroll_offset = picker->selected_index;
+                        }
                     }
-                    get_directory_contents(picker);
+                    break;
+                case SDLK_DOWN:
+                    if (picker->selected_index < picker->file_count - 1) {
+                        picker->selected_index++;
+                        if (picker->selected_index >= picker->scroll_offset + picker->items_per_page) {
+                            picker->scroll_offset = picker->selected_index - picker->items_per_page + 1;
+                        }
+                    }
+                    break;
+                case SDLK_PAGEUP:
+                    picker->selected_index -= picker->items_per_page;
+                    if (picker->selected_index < 0) picker->selected_index = 0;
+                    picker->scroll_offset = picker->selected_index;
+                    break;
+                case SDLK_PAGEDOWN:
+                    picker->selected_index += picker->items_per_page;
+                    if (picker->selected_index >= picker->file_count) picker->selected_index = picker->file_count - 1;
+                    picker->scroll_offset = picker->selected_index - picker->items_per_page + 1;
+                    if (picker->scroll_offset < 0) picker->scroll_offset = 0;
+                    break;
+                case SDLK_HOME:
                     picker->selected_index = 0;
-                } else {
-                    char full_path[MAX_PATH];
-                    snprintf(full_path, MAX_PATH, "%s/%s", picker->current_dir, picker->files[picker->selected_index].name);
-                    *selected_file = strdup(full_path);
+                    picker->scroll_offset = 0;
+                    break;
+                case SDLK_END:
+                    picker->selected_index = picker->file_count - 1;
+                    picker->scroll_offset = picker->file_count - picker->items_per_page;
+                    if (picker->scroll_offset < 0) picker->scroll_offset = 0;
+                    break;
+                case SDLK_RETURN:
+                    if (picker->files[picker->selected_index].is_dir) {
+                        if (strcmp(picker->files[picker->selected_index].name, "..") == 0) {
+                            get_parent_directory(picker->current_dir);
+                        } else {
+                            char new_dir[MAX_PATH];
+                            snprintf(new_dir, MAX_PATH, "%s/%s", picker->current_dir, picker->files[picker->selected_index].name);
+                            strncpy(picker->current_dir, new_dir, MAX_PATH);
+                        }
+                        get_directory_contents(picker);
+                        picker->selected_index = 0;
+                        picker->scroll_offset = 0;
+                    } else {
+                        char full_path[MAX_PATH];
+                        snprintf(full_path, MAX_PATH, "%s/%s", picker->current_dir, picker->files[picker->selected_index].name);
+                        *selected_file = strdup(full_path);
+                        *quit = 1;
+                    }
+                    break;
+                case SDLK_BACKSPACE:
+                    {
+                        int len = strlen(picker->search_text);
+                        if (len > 0) {
+                            picker->search_text[len - 1] = '\0';
+                            get_directory_contents(picker);
+                            filter_files(picker);
+                            picker->selected_index = 0;
+                            picker->scroll_offset = 0;
+                        }
+                    }
+                    break;
+                case SDLK_ESCAPE:
                     *quit = 1;
-                }
-            } else if (event->key.keysym.sym == SDLK_BACKSPACE) {
-                int len = strlen(picker->search_text);
-                if (len > 0) {
-                    picker->search_text[len - 1] = '\0';
-                    get_directory_contents(picker);
-                    filter_files(picker);
-                }
-            } else if (event->key.keysym.sym == SDLK_ESCAPE) {
-                *quit = 1;
+                    break;
             }
             break;
         case SDL_TEXTINPUT:
             strcat(picker->search_text, event->text.text);
             get_directory_contents(picker);
             filter_files(picker);
+            picker->selected_index = 0;
+            picker->scroll_offset = 0;
+            break;
+        case SDL_MOUSEBUTTONDOWN:
+            if (event->button.button == SDL_BUTTON_LEFT) {
+                if (mouse_x >= picker->width - SCROLLBAR_WIDTH) {
+                    picker->is_scrolling = 1;
+                } else if (mouse_y >= SEARCHBAR_HEIGHT) {
+                    int clicked_index = picker->scroll_offset + (mouse_y - SEARCHBAR_HEIGHT) / ITEM_HEIGHT;
+                    if (clicked_index < picker->file_count) {
+                        picker->selected_index = clicked_index;
+                    }
+                }
+            }
+            break;
+        case SDL_MOUSEBUTTONUP:
+            if (event->button.button == SDL_BUTTON_LEFT) {
+                picker->is_scrolling = 0;
+            }
+            break;
+        case SDL_MOUSEMOTION:
+            if (picker->is_scrolling) {
+                float scroll_ratio = (float)(mouse_y - SEARCHBAR_HEIGHT) / (picker->height - SEARCHBAR_HEIGHT);
+                picker->scroll_offset = (int)(scroll_ratio * (picker->file_count - picker->items_per_page));
+                if (picker->scroll_offset < 0) picker->scroll_offset = 0;
+                if (picker->scroll_offset > picker->file_count - picker->items_per_page)
+                    picker->scroll_offset = picker->file_count - picker->items_per_page;
+            }
+            break;
+        case SDL_MOUSEWHEEL:
+            picker->scroll_offset -= event->wheel.y * 3;
+            if (picker->scroll_offset < 0) picker->scroll_offset = 0;
+            if (picker->scroll_offset > picker->file_count - picker->items_per_page)
+                picker->scroll_offset = picker->file_count - picker->items_per_page;
             break;
         case SDL_WINDOWEVENT:
             if (event->window.event == SDL_WINDOWEVENT_RESIZED) {
                 picker->width = event->window.data1;
                 picker->height = event->window.data2;
+                picker->items_per_page = (picker->height - SEARCHBAR_HEIGHT) / ITEM_HEIGHT;
             }
             break;
     }
@@ -324,20 +409,25 @@ void handle_events(FilePicker* picker, SDL_Event* event, int* quit, char** selec
 }
 
 void update_scroll(FilePicker* picker) {
-    int total_height = picker->file_count * (FONT_SIZE + 4);
-    int visible_height = picker->height - SEARCHBAR_HEIGHT;
+    picker->items_per_page = (picker->height - SEARCHBAR_HEIGHT) / ITEM_HEIGHT;
     
-    if (total_height > 0 && visible_height > 0) {
-        picker->scrollbar.max_position = (total_height > visible_height) ? (total_height - visible_height) : 0;
-        picker->scrollbar.size = (visible_height * visible_height) / total_height;
-        picker->scrollbar.position = picker->selected_index * (FONT_SIZE + 4);
-        if (picker->scrollbar.position > picker->scrollbar.max_position)
-            picker->scrollbar.position = picker->scrollbar.max_position;
-    } else {
-        // Reset scrollbar when there are no files
-        picker->scrollbar.max_position = 0;
-        picker->scrollbar.size = visible_height;
-        picker->scrollbar.position = 0;
+    if (picker->selected_index < picker->scroll_offset) {
+        picker->scroll_offset = picker->selected_index;
+    } else if (picker->selected_index >= picker->scroll_offset + picker->items_per_page) {
+        picker->scroll_offset = picker->selected_index - picker->items_per_page + 1;
+    }
+
+    if (picker->scroll_offset < 0) {
+        picker->scroll_offset = 0;
+    }
+
+    int max_scroll = picker->file_count - picker->items_per_page;
+    if (picker->scroll_offset > max_scroll) {
+        picker->scroll_offset = max_scroll;
+    }
+
+    if (picker->scroll_offset < 0) {
+        picker->scroll_offset = 0;
     }
 }
 
