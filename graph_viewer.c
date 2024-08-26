@@ -124,7 +124,7 @@ static inline void apply_fruchterman_reingold_layout(GraphData *graph);
 static inline void update_node_visibility(AppState *app);
 static inline void cycle_selection_mode(AppState *app);
 static inline void update_open_button_position(AppState *app);
-static inline const char* handle_open_button_click(void);
+static inline char* handle_open_button_click(void);
 static inline void set_node_selection(AppState *app, int node_id);
 static inline void set_edge_selection(AppState *app, int edge_id);
 static inline void render_top_bar(SDL_Renderer *renderer, AppState *app);
@@ -1165,7 +1165,6 @@ static inline void handle_input(SDL_Event *event, AppState *app) {
       if (x >= app->open_button.x && x <= app->open_button.x + app->open_button.w &&
           y >= app->open_button.y && y <= app->open_button.y + app->open_button.h) {
         const char* selected_file = handle_open_button_click();
-        printf("Selected file: %s\n", selected_file);
         reinitialize_app(app, selected_file);
       } else if (x >= 10 && x <= left_menu_width - 10 && y >= 10 && y <= 40) {
         cycle_selection_mode(app);
@@ -1420,8 +1419,8 @@ static inline void update_open_button_position(AppState *app) {
   };
 }
 
-static inline const char* handle_open_button_click(void) {
-    static char selected_file[MAX_PATH] = {0};
+static inline char* handle_open_button_click(void) {
+    static char selected_file[4096] = {0};
     FILE *fp;
     char command[256];
 

@@ -4,5 +4,6 @@ lib64/**
 share/**
 pyvenv.cfg
 graph_viewer
+filepicker
 .aider*
 temp/**
