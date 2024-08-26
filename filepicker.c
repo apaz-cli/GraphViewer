@@ -196,11 +196,19 @@ void render_file_picker(FilePicker* picker) {
         SDL_RenderFillRect(picker->renderer, &bg_rect);
 
         SDL_Surface* surface = TTF_RenderText_Solid(picker->font, picker->files[i].name, text_color);
-        SDL_Texture* texture = SDL_CreateTextureFromSurface(picker->renderer, surface);
-        SDL_Rect dest = {5, y, surface->w, surface->h};
-        SDL_RenderCopy(picker->renderer, texture, NULL, &dest);
-        SDL_FreeSurface(surface);
-        SDL_DestroyTexture(texture);
+        if (surface) {
+            SDL_Texture* texture = SDL_CreateTextureFromSurface(picker->renderer, surface);
+            if (texture) {
+                SDL_Rect dest = {5, y, surface->w, surface->h};
+                SDL_RenderCopy(picker->renderer, texture, NULL, &dest);
+                SDL_DestroyTexture(texture);
+            } else {
+                SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create texture: %s", SDL_GetError());
+            }
+            SDL_FreeSurface(surface);
+        } else {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to render text: %s", TTF_GetError());
+        }
 
         y += FONT_SIZE + 4;
     }
@@ -227,11 +235,19 @@ void render_file_picker(FilePicker* picker) {
     SDL_RenderFillRect(picker->renderer, &searchbar_bg);
 
     SDL_Surface* search_surface = TTF_RenderText_Solid(picker->font, picker->search_text, text_color);
-    SDL_Texture* search_texture = SDL_CreateTextureFromSurface(picker->renderer, search_surface);
-    SDL_Rect search_dest = {5, 5, search_surface->w, search_surface->h};
-    SDL_RenderCopy(picker->renderer, search_texture, NULL, &search_dest);
-    SDL_FreeSurface(search_surface);
-    SDL_DestroyTexture(search_texture);
+    if (search_surface) {
+        SDL_Texture* search_texture = SDL_CreateTextureFromSurface(picker->renderer, search_surface);
+        if (search_texture) {
+            SDL_Rect search_dest = {5, 5, search_surface->w, search_surface->h};
+            SDL_RenderCopy(picker->renderer, search_texture, NULL, &search_dest);
+            SDL_DestroyTexture(search_texture);
+        } else {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create search texture: %s", SDL_GetError());
+        }
+        SDL_FreeSurface(search_surface);
+    } else {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to render search text: %s", TTF_GetError());
+    }
 
     SDL_RenderPresent(picker->renderer);
 }
