@@ -55,6 +55,33 @@ int is_directory(const char* path);
 void get_parent_directory(char* path);
 void filter_files(FilePicker* picker);
 
+// Case-insensitive string comparison
+int strcasecmp_custom(const char* s1, const char* s2) {
+    while (*s1 && *s2) {
+        char c1 = tolower((unsigned char)*s1);
+        char c2 = tolower((unsigned char)*s2);
+        if (c1 != c2) {
+            return c1 - c2;
+        }
+        s1++;
+        s2++;
+    }
+    return *s1 - *s2;
+}
+
+// Comparison function for sorting FileEntry structs
+int compare_file_entries(const void* a, const void* b) {
+    const FileEntry* fa = (const FileEntry*)a;
+    const FileEntry* fb = (const FileEntry*)b;
+
+    // Sort directories first
+    if (fa->is_dir && !fb->is_dir) return -1;
+    if (!fa->is_dir && fb->is_dir) return 1;
+
+    // Then sort alphabetically (case-insensitive)
+    return strcasecmp_custom(fa->name, fb->name);
+}
+
 // Main file picker function
 char* show_file_picker(const char* initial_dir);
 
