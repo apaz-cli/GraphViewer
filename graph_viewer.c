@@ -14,6 +14,7 @@
 
 #include "bell_wav.xxd"
 #include "cJSON.h"
+#include "lemon_ttf.xxd"
 
 // Configuration constants
 #define FPS 60
@@ -1366,11 +1367,20 @@ static inline void initialize_app(AppState *app, const char *graph_file) {
   app->drag_start_y = 0;
   app->drag_start_scroll = 0;
 
-  app->font_small = TTF_OpenFont("lemon.ttf", 15);
-  app->font_medium = TTF_OpenFont("lemon.ttf", 30);
-  app->font_large = TTF_OpenFont("lemon.ttf", 45);
+  SDL_RWops *font_rw = SDL_RWFromMem(lemon_ttf, lemon_ttf_len);
+  if (!font_rw) {
+    fprintf(stderr, "Failed to create RWops for font: %s\n", SDL_GetError());
+    exit(1);
+  }
+
+  app->font_small = TTF_OpenFontRW(font_rw, 0, 15);
+  SDL_RWseek(font_rw, 0, RW_SEEK_SET);
+  app->font_medium = TTF_OpenFontRW(font_rw, 0, 30);
+  SDL_RWseek(font_rw, 0, RW_SEEK_SET);
+  app->font_large = TTF_OpenFontRW(font_rw, 1, 45);
+
   if (!app->font_small || !app->font_medium || !app->font_large) {
-    fprintf(stderr, "TTF_OpenFont: %s\n", TTF_GetError());
+    fprintf(stderr, "TTF_OpenFontRW: %s\n", TTF_GetError());
     exit(1);
   }
 
