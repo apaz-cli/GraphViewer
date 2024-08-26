@@ -4,8 +4,10 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <math.h>
+#include <stdlib.h>
 
 #define MAX_PATH 1024
+#define DIRECTORY_COLOR (SDL_Color){173, 216, 230, 255}  // Light blue color for directories
 #define MAX_FILES 1000
 #define FONT_SIZE 14
 #define SCROLLBAR_WIDTH 20
@@ -185,6 +187,9 @@ void get_directory_contents(FilePicker* picker) {
 
     closedir(dir);
 
+    // Sort the files (excluding the ".." entry at index 0)
+    qsort(&picker->files[1], picker->file_count - 1, sizeof(FileEntry), compare_file_entries);
+
     if (picker->file_count == 0) {
         fprintf(stderr, "Warning: No files found in directory: %s\n", picker->current_dir);
     }
@@ -204,7 +209,11 @@ void render_file_picker(FilePicker* picker) {
         SDL_SetRenderDrawColor(picker->renderer, bg_color.r, bg_color.g, bg_color.b, bg_color.a);
         SDL_RenderFillRect(picker->renderer, &bg_rect);
 
-        SDL_Surface* surface = TTF_RenderText_Solid(picker->font, picker->files[i].name, text_color);
+        char display_name[MAX_PATH];
+        snprintf(display_name, MAX_PATH, "%s%s", picker->files[i].name, picker->files[i].is_dir ? "/" : "");
+
+        SDL_Color item_color = picker->files[i].is_dir ? DIRECTORY_COLOR : text_color;
+        SDL_Surface* surface = TTF_RenderText_Solid(picker->font, display_name, item_color);
         if (surface) {
             SDL_Texture* texture = SDL_CreateTextureFromSurface(picker->renderer, surface);
             if (texture) {
