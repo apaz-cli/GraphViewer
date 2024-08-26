@@ -152,7 +152,7 @@ static inline int get_graph_width(int window_width) {
 }
 
 // Implementation of core functions
-GraphData *create_graph(int node_count, int edge_count) {
+static inline GraphData *create_graph(int node_count, int edge_count) {
   GraphData *graph = (GraphData *)malloc(sizeof(GraphData));
   if (!graph) {
     fprintf(stderr, "Failed to allocate memory for graph\n");
@@ -170,7 +170,7 @@ GraphData *create_graph(int node_count, int edge_count) {
   return graph;
 }
 
-void free_graph(GraphData *graph) {
+static inline void free_graph(GraphData *graph) {
   if (!graph)
     return;
   for (int i = 0; i < graph->node_count; i++) {
@@ -184,7 +184,7 @@ void free_graph(GraphData *graph) {
   free(graph);
 }
 
-GraphData *load_graph(const char *filename) {
+static inline GraphData *load_graph(const char *filename) {
   FILE *file = fopen(filename, "r");
   if (!file) {
     if (filename) {
@@ -266,7 +266,7 @@ GraphData *load_graph(const char *filename) {
   return graph;
 }
 
-void apply_force_directed_layout(GraphData *graph) {
+static inline void apply_force_directed_layout(GraphData *graph) {
   float width = sqrt(LAYOUT_AREA_MULTIPLIER * graph->node_count);
   float height = width;
   float area = width * height;
@@ -347,7 +347,7 @@ void apply_force_directed_layout(GraphData *graph) {
   free(forces);
 }
 
-void apply_fruchterman_reingold_layout(GraphData *graph) {
+static inline void apply_fruchterman_reingold_layout(GraphData *graph) {
   int width = 1000;
   int height = 1000;
   float area = width * height * LAYOUT_AREA_MULTIPLIER;
@@ -421,7 +421,7 @@ void apply_fruchterman_reingold_layout(GraphData *graph) {
   free(displacement);
 }
 
-void update_node_visibility(AppState *app) {
+static inline void update_node_visibility(AppState *app) {
   app->visible_nodes_count = 0;
   for (int i = 0; i < app->graph->node_count; i++) {
     if (strlen(app->search_bar.text) == 0) {
@@ -441,11 +441,11 @@ void update_node_visibility(AppState *app) {
   }
 }
 
-void cycle_selection_mode(AppState *app) {
+static inline void cycle_selection_mode(AppState *app) {
   app->selection_mode = (app->selection_mode + 1) % SELECT_MODE_COUNT;
 }
 
-void select_references_recursive(AppState *app, int node_id) {
+static inline void select_references_recursive(AppState *app, int node_id) {
   for (int i = 0; i < app->graph->edge_count; i++) {
     if (app->graph->edges[i].source == node_id &&
         !app->selected_nodes[app->graph->edges[i].target]) {
@@ -455,7 +455,7 @@ void select_references_recursive(AppState *app, int node_id) {
   }
 }
 
-void select_referenced_by_recursive(AppState *app, int node_id) {
+static inline void select_referenced_by_recursive(AppState *app, int node_id) {
   for (int i = 0; i < app->graph->edge_count; i++) {
     if (app->graph->edges[i].target == node_id &&
         !app->selected_nodes[app->graph->edges[i].source]) {
@@ -465,7 +465,7 @@ void select_referenced_by_recursive(AppState *app, int node_id) {
   }
 }
 
-void set_node_selection(AppState *app, int node_id) {
+static inline void set_node_selection(AppState *app, int node_id) {
   memset(app->selected_nodes, 0, app->graph->node_count * sizeof(int));
 
   switch (app->selection_mode) {
@@ -504,7 +504,7 @@ void set_node_selection(AppState *app, int node_id) {
   app->left_scroll_position = 0; // Reset left menu scroll position
 }
 
-void set_edge_selection(AppState *app, int edge_id) {
+static inline void set_edge_selection(AppState *app, int edge_id) {
   memset(app->selected_nodes, 0, app->graph->node_count * sizeof(int));
   app->selected_nodes[app->graph->edges[edge_id].source] = 1;
   app->selected_nodes[app->graph->edges[edge_id].target] = 1;
@@ -512,14 +512,14 @@ void set_edge_selection(AppState *app, int edge_id) {
   app->left_scroll_position = 0; // Reset left menu scroll position
 }
 
-void render_label_background(SDL_Renderer *renderer, int x, int y, int width,
+static inline void render_label_background(SDL_Renderer *renderer, int x, int y, int width,
                              int height) {
   SDL_Rect bg_rect = {x - 2, y - 2, width + 4, height + 4};
   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 200);
   SDL_RenderFillRect(renderer, &bg_rect);
 }
 
-void render_hover_label(SDL_Renderer *renderer, AppState *app,
+static inline void render_hover_label(SDL_Renderer *renderer, AppState *app,
                         const char *label, int x, int y) {
   if (label == NULL || strlen(label) == 0) {
     return;
@@ -565,7 +565,7 @@ void render_hover_label(SDL_Renderer *renderer, AppState *app,
   SDL_DestroyTexture(text_texture);
 }
 
-void render_graph(SDL_Renderer *renderer, AppState *app) {
+static inline void render_graph(SDL_Renderer *renderer, AppState *app) {
   int left_menu_width = get_left_menu_width(app->window_width);
   int graph_width = get_graph_width(app->window_width);
 
@@ -726,7 +726,7 @@ void render_graph(SDL_Renderer *renderer, AppState *app) {
   }
 }
 
-void render_label(SDL_Renderer *renderer, const char *text, int x, int y,
+static inline void render_label(SDL_Renderer *renderer, const char *text, int x, int y,
                   TTF_Font *font, SDL_Color color, int max_width) {
   SDL_Surface *surface = TTF_RenderText_Solid(font, text, color);
   SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
@@ -748,7 +748,7 @@ void render_label(SDL_Renderer *renderer, const char *text, int x, int y,
   SDL_DestroyTexture(texture);
 }
 
-SDL_Rect render_scrollbar(SDL_Renderer *renderer, int x, int y, int width, int height,
+static inline SDL_Rect render_scrollbar(SDL_Renderer *renderer, int x, int y, int width, int height,
                           int total_items, int visible_items, int scroll_position) {
   int content_height = total_items * 20; // Assuming each item is 20 pixels high
   float visible_ratio = (float)height / content_height;
@@ -772,7 +772,7 @@ SDL_Rect render_scrollbar(SDL_Renderer *renderer, int x, int y, int width, int h
   return scrollbar_bg;  // Return the entire scrollbar area
 }
 
-void handle_menu_scroll(int *scroll_position, int scroll_amount, int total_items,
+static inline void handle_menu_scroll(int *scroll_position, int scroll_amount, int total_items,
                         int visible_items, int item_height) {
   int max_scroll = fmax(0, (total_items - visible_items) * item_height);
   *scroll_position = fmax(0, fmin(*scroll_position - scroll_amount, max_scroll));
@@ -783,13 +783,13 @@ void handle_menu_scroll(int *scroll_position, int scroll_amount, int total_items
   }
 }
 
-int is_mouse_over_menu_item(int mouseX, int mouseY, int itemY, int menuX,
+static inline int is_mouse_over_menu_item(int mouseX, int mouseY, int itemY, int menuX,
                             int menuWidth, int itemHeight) {
   return mouseX >= menuX && mouseX <= menuX + menuWidth && mouseY >= itemY &&
          mouseY < itemY + itemHeight;
 }
 
-void render_menu_item(SDL_Renderer *renderer, const char *text, int x, int y,
+static inline void render_menu_item(SDL_Renderer *renderer, const char *text, int x, int y,
                       int width, int height, SDL_Color bg_color,
                       SDL_Color text_color, TTF_Font *font) {
   SDL_Rect bg_rect = {x, y, width, height};
@@ -800,7 +800,7 @@ void render_menu_item(SDL_Renderer *renderer, const char *text, int x, int y,
                font, text_color, width - 10);
 }
 
-void render_left_menu(SDL_Renderer *renderer, AppState *app) {
+static inline void render_left_menu(SDL_Renderer *renderer, AppState *app) {
   int left_menu_width = get_left_menu_width(app->window_width);
   int detail_area_height = app->window_height * 0.4;
   int scrollbar_width = 15;
@@ -920,7 +920,7 @@ void render_left_menu(SDL_Renderer *renderer, AppState *app) {
   SDL_RenderSetViewport(renderer, NULL);
 }
 
-void render_right_menu(SDL_Renderer *renderer, AppState *app) {
+static inline void render_right_menu(SDL_Renderer *renderer, AppState *app) {
   int right_menu_width = get_right_menu_width(app->window_width);
   int right_menu_x = app->window_width - right_menu_width;
   int scrollbar_width = 15;
@@ -1008,7 +1008,7 @@ void render_right_menu(SDL_Renderer *renderer, AppState *app) {
   SDL_RenderSetViewport(renderer, NULL);
 }
 
-void handle_input(SDL_Event *event, AppState *app) {
+static inline void handle_input(SDL_Event *event, AppState *app) {
   int left_menu_width = get_left_menu_width(app->window_width);
   int right_menu_width = get_right_menu_width(app->window_width);
   int graph_width = get_graph_width(app->window_width);
@@ -1325,7 +1325,7 @@ void handle_input(SDL_Event *event, AppState *app) {
   }
 }
 
-void initialize_app(AppState *app, const char *graph_file) {
+static inline void initialize_app(AppState *app, const char *graph_file) {
   app->graph = load_graph(graph_file);
   if (!app->graph) {
     fprintf(stderr, "Failed to load graph\n");
@@ -1381,7 +1381,7 @@ void initialize_app(AppState *app, const char *graph_file) {
   update_open_button_position(app);
 }
 
-void render_top_bar(SDL_Renderer *renderer, AppState *app) {
+static inline void render_top_bar(SDL_Renderer *renderer, AppState *app) {
   int left_menu_width = get_left_menu_width(app->window_width);
   int right_menu_width = get_right_menu_width(app->window_width);
   int graph_width = get_graph_width(app->window_width);
@@ -1400,7 +1400,7 @@ void render_top_bar(SDL_Renderer *renderer, AppState *app) {
   render_label(renderer, "apaz's heap viewer", left_menu_width + graph_width - 200, 10, app->font_small, (SDL_Color){0, 255, 0, 255}, 190);
 }
 
-void update_open_button_position(AppState *app) {
+static inline void update_open_button_position(AppState *app) {
   int left_menu_width = get_left_menu_width(app->window_width);
   app->open_button = (SDL_Rect){
     left_menu_width + 10,
@@ -1423,7 +1423,7 @@ void update_open_button_position(AppState *app) {
 #include <commdlg.h>
 #endif
 
-const char* handle_open_button_click(void) {
+static inline const char* handle_open_button_click(void) {
     static char selected_file[1024] = {0};
 
 #ifdef __APPLE__
@@ -1498,7 +1498,7 @@ const char* handle_open_button_click(void) {
     return selected_file[0] != '\0' ? selected_file : NULL;
 }
 
-void cleanup_app(AppState *app) {
+static inline void cleanup_app(AppState *app) {
   free_graph(app->graph);
   free(app->selected_nodes);
   TTF_CloseFont(app->font_small);
@@ -1506,7 +1506,7 @@ void cleanup_app(AppState *app) {
   TTF_CloseFont(app->font_large);
 }
 
-void reinitialize_app(AppState *app, const char *graph_file) {
+static inline void reinitialize_app(AppState *app, const char *graph_file) {
   // Clean up existing resources
   free_graph(app->graph);
   free(app->selected_nodes);
@@ -1547,7 +1547,7 @@ void reinitialize_app(AppState *app, const char *graph_file) {
   update_open_button_position(app);
 }
 
-int run_graph_viewer(const char *graph_file) {
+static inline int run_graph_viewer(const char *graph_file) {
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
     fprintf(stderr, "SDL could not initialize! SDL_Error: %s\n",
             SDL_GetError());

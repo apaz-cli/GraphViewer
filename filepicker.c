@@ -59,7 +59,7 @@ void get_parent_directory(char *path);
 void filter_files(FilePicker *picker);
 
 // Case-insensitive string comparison
-int strcasecmp_custom(const char *s1, const char *s2) {
+static inline int strcasecmp_custom(const char *s1, const char *s2) {
   while (*s1 && *s2) {
     char c1 = tolower((unsigned char)*s1);
     char c2 = tolower((unsigned char)*s2);
@@ -73,7 +73,7 @@ int strcasecmp_custom(const char *s1, const char *s2) {
 }
 
 // Comparison function for sorting FileEntry structs
-int compare_file_entries(const void *a, const void *b) {
+static inline int compare_file_entries(const void *a, const void *b) {
   const FileEntry *fa = (const FileEntry *)a;
   const FileEntry *fb = (const FileEntry *)b;
 
@@ -88,7 +88,7 @@ int compare_file_entries(const void *a, const void *b) {
 }
 
 // Main file picker function
-char *show_file_picker(const char *initial_dir);
+static inline char *show_file_picker(const char *initial_dir);
 
 int main(int argc, char *argv[]) {
   const char *initial_dir = ".";
@@ -131,21 +131,21 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-int is_directory(const char *path) {
+static inline int is_directory(const char *path) {
   struct stat statbuf;
   if (stat(path, &statbuf) != 0)
     return 0;
   return S_ISDIR(statbuf.st_mode);
 }
 
-void get_parent_directory(char *path) {
+static inline void get_parent_directory(char *path) {
   char *last_slash = strrchr(path, '/');
   if (last_slash != NULL) {
     *last_slash = '\0';
   }
 }
 
-void filter_files(FilePicker *picker) {
+static inline void filter_files(FilePicker *picker) {
   int j = 0;
   for (int i = 0; i < picker->file_count; i++) {
     if (strstr(picker->files[i].name, picker->search_text) != NULL) {
@@ -156,7 +156,7 @@ void filter_files(FilePicker *picker) {
   picker->file_count = j;
 }
 
-FilePicker *initialize_file_picker(const char *initial_dir) {
+static inline FilePicker *initialize_file_picker(const char *initial_dir) {
   FilePicker *picker = (FilePicker *)malloc(sizeof(FilePicker));
   if (!picker)
     return NULL;
@@ -199,7 +199,7 @@ FilePicker *initialize_file_picker(const char *initial_dir) {
   return picker;
 }
 
-void cleanup_file_picker(FilePicker *picker) {
+static inline void cleanup_file_picker(FilePicker *picker) {
   if (picker) {
     TTF_CloseFont(picker->font);
     SDL_DestroyRenderer(picker->renderer);
@@ -208,7 +208,7 @@ void cleanup_file_picker(FilePicker *picker) {
   }
 }
 
-void get_directory_contents(FilePicker *picker) {
+static inline void get_directory_contents(FilePicker *picker) {
   DIR *dir;
   struct dirent *entry;
 
@@ -248,7 +248,7 @@ void get_directory_contents(FilePicker *picker) {
   }
 }
 
-void render_file_picker(FilePicker *picker) {
+static inline void render_file_picker(FilePicker *picker) {
   SDL_SetRenderDrawColor(picker->renderer, 255, 255, 255, 255);
   SDL_RenderClear(picker->renderer);
 
@@ -369,7 +369,7 @@ void render_file_picker(FilePicker *picker) {
   SDL_RenderPresent(picker->renderer);
 }
 
-void handle_events(FilePicker *picker, SDL_Event *event, int *quit,
+static inline void handle_events(FilePicker *picker, SDL_Event *event, int *quit,
                    char **selected_file) {
   int mouse_x, mouse_y;
   SDL_GetMouseState(&mouse_x, &mouse_y);
@@ -523,7 +523,7 @@ void handle_events(FilePicker *picker, SDL_Event *event, int *quit,
   update_scroll(picker);
 }
 
-void update_scroll(FilePicker *picker) {
+static inline void update_scroll(FilePicker *picker) {
   picker->items_per_page = (picker->height - SEARCHBAR_HEIGHT) / ITEM_HEIGHT;
 
   if (picker->selected_index < picker->scroll_offset) {
