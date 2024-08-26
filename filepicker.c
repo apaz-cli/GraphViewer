@@ -35,6 +35,7 @@ typedef struct {
   SDL_Window *window;
   SDL_Renderer *renderer;
   TTF_Font *font;
+  SDL_RWops *font_rw;
   char current_dir[MAX_PATH];
   FileEntry files[MAX_FILES];
   int file_count;
@@ -181,8 +182,8 @@ static inline FilePicker *initialize_file_picker(const char *initial_dir) {
     return NULL;
   }
 
-  SDL_RWops *font_rw = SDL_RWFromMem(lemon_ttf, lemon_ttf_len);
-  if (!font_rw) {
+  picker->font_rw = SDL_RWFromMem(lemon_ttf, lemon_ttf_len);
+  if (!picker->font_rw) {
     fprintf(stderr, "Failed to create RWops for font: %s\n", SDL_GetError());
     SDL_DestroyRenderer(picker->renderer);
     SDL_DestroyWindow(picker->window);
@@ -190,10 +191,10 @@ static inline FilePicker *initialize_file_picker(const char *initial_dir) {
     return NULL;
   }
 
-  picker->font = TTF_OpenFontRW(font_rw, 1, FONT_SIZE);
+  picker->font = TTF_OpenFontRW(picker->font_rw, 0, FONT_SIZE);
   if (!picker->font) {
     fprintf(stderr, "Failed to load font: %s\n", TTF_GetError());
-    SDL_FreeRW(font_rw);
+    SDL_FreeRW(picker->font_rw);
     SDL_DestroyRenderer(picker->renderer);
     SDL_DestroyWindow(picker->window);
     free(picker);
@@ -217,6 +218,7 @@ static inline FilePicker *initialize_file_picker(const char *initial_dir) {
 static inline void cleanup_file_picker(FilePicker *picker) {
   if (picker) {
     TTF_CloseFont(picker->font);
+    SDL_FreeRW(picker->font_rw);
     SDL_DestroyRenderer(picker->renderer);
     SDL_DestroyWindow(picker->window);
     free(picker);
