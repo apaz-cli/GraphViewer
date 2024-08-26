@@ -3,7 +3,6 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <string.h>
-#include <math.h>
 #include <stdlib.h>
 
 #define MAX_PATH 1024
