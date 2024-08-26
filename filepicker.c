@@ -234,7 +234,10 @@ void render_file_picker(FilePicker* picker) {
     SDL_SetRenderDrawColor(picker->renderer, 240, 240, 240, 255);
     SDL_RenderFillRect(picker->renderer, &searchbar_bg);
 
-    SDL_Surface* search_surface = TTF_RenderText_Solid(picker->font, picker->search_text, text_color);
+    const char* render_text = strlen(picker->search_text) > 0 ? picker->search_text : "Search...";
+    SDL_Color render_color = strlen(picker->search_text) > 0 ? text_color : (SDL_Color){150, 150, 150, 255};
+    
+    SDL_Surface* search_surface = TTF_RenderText_Solid(picker->font, render_text, render_color);
     if (search_surface) {
         SDL_Texture* search_texture = SDL_CreateTextureFromSurface(picker->renderer, search_surface);
         if (search_texture) {
