@@ -1421,7 +1421,33 @@ static inline void update_open_button_position(AppState *app) {
 }
 
 static inline const char* handle_open_button_click(void) {
-    return show_file_picker(NULL);
+    static char selected_file[MAX_PATH] = {0};
+    FILE *fp;
+    char command[256];
+
+    // Construct the command to run the filepicker binary
+    snprintf(command, sizeof(command), "./filepicker");
+    
+    fp = popen(command, "r");
+    if (fp == NULL) {
+        fprintf(stderr, "Failed to run filepicker command\n");
+        return NULL;
+    }
+
+    if (fgets(selected_file, sizeof(selected_file) - 1, fp) != NULL) {
+        // Remove newline character if present
+        size_t len = strlen(selected_file);
+        if (len > 0 && selected_file[len-1] == '\n') {
+            selected_file[len-1] = '\0';
+        }
+    } else {
+        // No file selected
+        selected_file[0] = '\0';
+    }
+
+    pclose(fp);
+
+    return selected_file[0] != '\0' ? selected_file : NULL;
 }
 
 static inline void cleanup_app(AppState *app) {
