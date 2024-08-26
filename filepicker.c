@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <stdlib.h>
+#include <limits.h>
 
 #define MAX_PATH 1024
 #define DIRECTORY_COLOR (SDL_Color){173, 216, 230, 255}  // Light blue color for directories
@@ -360,7 +361,15 @@ void handle_events(FilePicker* picker, SDL_Event* event, int* quit, char** selec
                 case SDLK_RETURN:
                     if (picker->files[picker->selected_index].is_dir) {
                         if (strcmp(picker->files[picker->selected_index].name, "..") == 0) {
-                            get_parent_directory(picker->current_dir);
+                            if (strcmp(picker->current_dir, ".") == 0) {
+                                // If current dir is ".", get the absolute path of the parent
+                                char abs_path[MAX_PATH];
+                                if (realpath("..", abs_path) != NULL) {
+                                    strncpy(picker->current_dir, abs_path, MAX_PATH);
+                                }
+                            } else {
+                                get_parent_directory(picker->current_dir);
+                            }
                         } else {
                             char new_dir[MAX_PATH];
                             snprintf(new_dir, MAX_PATH, "%s/%s", picker->current_dir, picker->files[picker->selected_index].name);
