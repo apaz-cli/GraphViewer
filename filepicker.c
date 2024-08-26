@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #define MAX_PATH 1024
 #define DIRECTORY_COLOR                                                        \
@@ -89,25 +90,39 @@ int compare_file_entries(const void *a, const void *b) {
 // Main file picker function
 char *show_file_picker(const char *initial_dir);
 
-// Test main function
 int main(int argc, char *argv[]) {
+  const char *initial_dir = ".";
+
+  // Check if an initial directory was provided as a command-line argument
+  if (argc > 1) {
+    initial_dir = argv[1];
+  } else {
+    // Use current working directory if no argument is provided
+    char cwd[MAX_PATH];
+    if (getcwd(cwd, sizeof(cwd)) != NULL) {
+      initial_dir = cwd;
+    } else {
+      fprintf(stderr, "Error getting current working directory\n");
+      return 1;
+    }
+  }
+
   if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-    SDL_Log("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
+    fprintf(stderr, "SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
     return 1;
   }
 
   if (TTF_Init() == -1) {
-    SDL_Log("TTF_Init: %s\n", TTF_GetError());
+    fprintf(stderr, "TTF_Init: %s\n", TTF_GetError());
+    SDL_Quit();
     return 1;
   }
 
-  char *selected_file = show_file_picker(".");
+  char *selected_file = show_file_picker(initial_dir);
 
   if (selected_file) {
-    printf("Selected file: %s\n", selected_file);
+    printf("%s\n", selected_file);
     free(selected_file);
-  } else {
-    printf("No file selected.\n");
   }
 
   TTF_Quit();
