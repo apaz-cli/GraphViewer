@@ -8,8 +8,6 @@
 
 #include "lemon_ttf.xxd"
 
-#include "lemon_ttf.xxd"
-
 #define MAX_PATH 1024
 #define COLOR_MENU_ITEM_1 (SDL_Color){55, 55, 55, 255}
 #define COLOR_MENU_ITEM_2 (SDL_Color){70, 70, 70, 255}
