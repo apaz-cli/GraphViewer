@@ -9,8 +9,11 @@
 #include "lemon_ttf.xxd"
 
 #define MAX_PATH 1024
-#define DIRECTORY_COLOR                                                        \
-  (SDL_Color) { 173, 216, 230, 255 } // Light blue color for directories
+#define COLOR_MENU_ITEM_1 (SDL_Color){55, 55, 55, 255}
+#define COLOR_MENU_ITEM_2 (SDL_Color){70, 70, 70, 255}
+#define COLOR_BLACK (SDL_Color){0, 0, 0, 255}
+#define COLOR_WHITE (SDL_Color){255, 255, 255, 255}
+#define COLOR_DIRECTORY (SDL_Color){0, 150, 255, 255}
 #define MAX_FILES 1000
 #define FONT_SIZE 14
 #define SCROLLBAR_WIDTH 20
@@ -261,11 +264,8 @@ static inline void get_directory_contents(FilePicker *picker) {
 }
 
 static inline void render_file_picker(FilePicker *picker) {
-  SDL_SetRenderDrawColor(picker->renderer, 255, 255, 255, 255);
+  SDL_SetRenderDrawColor(picker->renderer, 50, 50, 50, 255);
   SDL_RenderClear(picker->renderer);
-
-  SDL_Color text_color = {0, 0, 0, 255};
-  SDL_Color highlight_color = {200, 200, 255, 255};
 
   int y = SEARCHBAR_HEIGHT;
   for (int i = picker->scroll_offset;
@@ -273,8 +273,8 @@ static inline void render_file_picker(FilePicker *picker) {
        i < picker->scroll_offset + picker->items_per_page;
        i++) {
     SDL_Color bg_color = (i == picker->selected_index)
-                             ? highlight_color
-                             : (SDL_Color){255, 255, 255, 255};
+                             ? (SDL_Color){100, 100, 100, 255}
+                             : (i % 2 == 0 ? COLOR_MENU_ITEM_1 : COLOR_MENU_ITEM_2);
     SDL_Rect bg_rect = {0, y, picker->width - SCROLLBAR_WIDTH, ITEM_HEIGHT};
     SDL_SetRenderDrawColor(picker->renderer, bg_color.r, bg_color.g, bg_color.b,
                            bg_color.a);
@@ -285,7 +285,7 @@ static inline void render_file_picker(FilePicker *picker) {
              picker->files[i].is_dir ? "/" : "");
 
     SDL_Color item_color =
-        picker->files[i].is_dir ? DIRECTORY_COLOR : text_color;
+        picker->files[i].is_dir ? COLOR_DIRECTORY : COLOR_WHITE;
     SDL_Surface *surface =
         TTF_RenderText_Solid(picker->font, display_name, item_color);
     if (surface) {
@@ -312,7 +312,7 @@ static inline void render_file_picker(FilePicker *picker) {
   // Render scrollbar
   SDL_Rect scrollbar_bg = {picker->width - SCROLLBAR_WIDTH, SEARCHBAR_HEIGHT,
                            SCROLLBAR_WIDTH, picker->height - SEARCHBAR_HEIGHT};
-  SDL_SetRenderDrawColor(picker->renderer, 200, 200, 200, 255);
+  SDL_SetRenderDrawColor(picker->renderer, 70, 70, 70, 255);
   SDL_RenderFillRect(picker->renderer, &scrollbar_bg);
 
   if (picker->file_count > picker->items_per_page) {
@@ -324,19 +324,19 @@ static inline void render_file_picker(FilePicker *picker) {
                             (picker->file_count - picker->items_per_page);
     SDL_Rect scrollbar = {picker->width - SCROLLBAR_WIDTH, (int)scrollbar_y,
                           SCROLLBAR_WIDTH, (int)scrollbar_height};
-    SDL_SetRenderDrawColor(picker->renderer, 100, 100, 100, 255);
+    SDL_SetRenderDrawColor(picker->renderer, 150, 150, 150, 255);
     SDL_RenderFillRect(picker->renderer, &scrollbar);
   }
 
   // Render search bar
   SDL_Rect searchbar_bg = {0, 0, picker->width, SEARCHBAR_HEIGHT};
-  SDL_SetRenderDrawColor(picker->renderer, 240, 240, 240, 255);
+  SDL_SetRenderDrawColor(picker->renderer, 70, 70, 70, 255);
   SDL_RenderFillRect(picker->renderer, &searchbar_bg);
 
   const char *render_text =
       strlen(picker->search_text) > 0 ? picker->search_text : "Search...";
   SDL_Color render_color = strlen(picker->search_text) > 0
-                               ? text_color
+                               ? COLOR_WHITE
                                : (SDL_Color){150, 150, 150, 255};
 
   SDL_Surface *search_surface =
@@ -362,7 +362,7 @@ static inline void render_file_picker(FilePicker *picker) {
   if (picker->file_count == 0) {
     const char *no_files_text = "No files found";
     SDL_Surface *no_files_surface =
-        TTF_RenderText_Solid(picker->font, no_files_text, text_color);
+        TTF_RenderText_Solid(picker->font, no_files_text, COLOR_WHITE);
     if (no_files_surface) {
       SDL_Texture *no_files_texture =
           SDL_CreateTextureFromSurface(picker->renderer, no_files_surface);
