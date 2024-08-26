@@ -1420,8 +1420,6 @@ static inline void update_open_button_position(AppState *app) {
   };
 }
 
-#include "filepicker.h"
-
 static inline const char* handle_open_button_click(void) {
     return show_file_picker(NULL);
 }
