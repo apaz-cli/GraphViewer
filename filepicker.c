@@ -45,18 +45,18 @@ typedef struct {
 } FilePicker;
 
 // Core functions
-FilePicker *initialize_file_picker(const char *initial_dir);
-void cleanup_file_picker(FilePicker *picker);
-void get_directory_contents(FilePicker *picker);
-void render_file_picker(FilePicker *picker);
-void handle_events(FilePicker *picker, SDL_Event *event, int *quit,
+static inline FilePicker *initialize_file_picker(const char *initial_dir);
+static inline void cleanup_file_picker(FilePicker *picker);
+static inline void get_directory_contents(FilePicker *picker);
+static inline void render_file_picker(FilePicker *picker);
+static inline void handle_events(FilePicker *picker, SDL_Event *event, int *quit,
                    char **selected_file);
-void update_scroll(FilePicker *picker);
+static inline void update_scroll(FilePicker *picker);
 
 // Utility functions
-int is_directory(const char *path);
-void get_parent_directory(char *path);
-void filter_files(FilePicker *picker);
+static inline int is_directory(const char *path);
+static inline void get_parent_directory(char *path);
+static inline void filter_files(FilePicker *picker);
 
 // Case-insensitive string comparison
 static inline int strcasecmp_custom(const char *s1, const char *s2) {

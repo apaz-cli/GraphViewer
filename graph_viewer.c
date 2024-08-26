@@ -115,27 +115,27 @@ typedef struct {
 } AppState;
 
 // Function declarations
-GraphData *create_graph(int node_count, int edge_count);
-void free_graph(GraphData *graph);
-GraphData *load_graph(const char *filename);
-void apply_force_directed_layout(GraphData *graph);
-void apply_fruchterman_reingold_layout(GraphData *graph);
-void update_node_visibility(AppState *app);
-void cycle_selection_mode(AppState *app);
-void update_open_button_position(AppState *app);
-const char* handle_open_button_click(void);
-void set_node_selection(AppState *app, int node_id);
-void set_edge_selection(AppState *app, int edge_id);
-void render_top_bar(SDL_Renderer *renderer, AppState *app);
-void render_graph(SDL_Renderer *renderer, AppState *app);
-void render_menus(SDL_Renderer *renderer, AppState *app);
-void render_left_menu(SDL_Renderer *renderer, AppState *app);
-void render_right_menu(SDL_Renderer *renderer, AppState *app);
-void handle_input(SDL_Event *event, AppState *app);
-void initialize_app(AppState *app, const char *graph_file);
-void cleanup_app(AppState *app);
-void reinitialize_app(AppState *app, const char *graph_file);
-int run_graph_viewer(const char *graph_file);
+static inline GraphData *create_graph(int node_count, int edge_count);
+static inline void free_graph(GraphData *graph);
+static inline GraphData *load_graph(const char *filename);
+static inline void apply_force_directed_layout(GraphData *graph);
+static inline void apply_fruchterman_reingold_layout(GraphData *graph);
+static inline void update_node_visibility(AppState *app);
+static inline void cycle_selection_mode(AppState *app);
+static inline void update_open_button_position(AppState *app);
+static inline const char* handle_open_button_click(void);
+static inline void set_node_selection(AppState *app, int node_id);
+static inline void set_edge_selection(AppState *app, int edge_id);
+static inline void render_top_bar(SDL_Renderer *renderer, AppState *app);
+static inline void render_graph(SDL_Renderer *renderer, AppState *app);
+static inline void render_menus(SDL_Renderer *renderer, AppState *app);
+static inline void render_left_menu(SDL_Renderer *renderer, AppState *app);
+static inline void render_right_menu(SDL_Renderer *renderer, AppState *app);
+static inline void handle_input(SDL_Event *event, AppState *app);
+static inline void initialize_app(AppState *app, const char *graph_file);
+static inline void cleanup_app(AppState *app);
+static inline void reinitialize_app(AppState *app, const char *graph_file);
+static inline int run_graph_viewer(const char *graph_file);
 
 // Utility functions
 static inline int get_left_menu_width(int window_width) {
