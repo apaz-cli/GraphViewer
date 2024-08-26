@@ -154,10 +154,18 @@ void get_directory_contents(FilePicker* picker) {
     picker->file_count = 0;
 
     dir = opendir(picker->current_dir);
-    if (dir == NULL) return;
+    if (dir == NULL) {
+        fprintf(stderr, "Error opening directory: %s\n", picker->current_dir);
+        return;
+    }
+
+    // Always add ".." as the first entry
+    strncpy(picker->files[picker->file_count].name, "..", MAX_PATH);
+    picker->files[picker->file_count].is_dir = 1;
+    picker->file_count++;
 
     while ((entry = readdir(dir)) != NULL && picker->file_count < MAX_FILES) {
-        if (strcmp(entry->d_name, ".") == 0) continue;
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
 
         strncpy(picker->files[picker->file_count].name, entry->d_name, MAX_PATH);
         char full_path[MAX_PATH];
@@ -167,6 +175,10 @@ void get_directory_contents(FilePicker* picker) {
     }
 
     closedir(dir);
+
+    if (picker->file_count == 0) {
+        fprintf(stderr, "Warning: No files found in directory: %s\n", picker->current_dir);
+    }
 }
 
 void render_file_picker(FilePicker* picker) {
@@ -198,11 +210,16 @@ void render_file_picker(FilePicker* picker) {
     SDL_SetRenderDrawColor(picker->renderer, 200, 200, 200, 255);
     SDL_RenderFillRect(picker->renderer, &scrollbar_bg);
 
-    int scrollbar_height = (picker->height - SEARCHBAR_HEIGHT) * (picker->height - SEARCHBAR_HEIGHT) / (picker->file_count * (FONT_SIZE + 4));
-    int scrollbar_y = SEARCHBAR_HEIGHT + (picker->height - SEARCHBAR_HEIGHT - scrollbar_height) * picker->scrollbar.position / picker->scrollbar.max_position;
-    SDL_Rect scrollbar = {picker->width - SCROLLBAR_WIDTH, scrollbar_y, SCROLLBAR_WIDTH, scrollbar_height};
-    SDL_SetRenderDrawColor(picker->renderer, 100, 100, 100, 255);
-    SDL_RenderFillRect(picker->renderer, &scrollbar);
+    if (picker->file_count > 0) {
+        int scrollbar_height = (picker->height - SEARCHBAR_HEIGHT) * (picker->height - SEARCHBAR_HEIGHT) / (picker->file_count * (FONT_SIZE + 4));
+        int scrollbar_y = SEARCHBAR_HEIGHT;
+        if (picker->scrollbar.max_position > 0) {
+            scrollbar_y += (picker->height - SEARCHBAR_HEIGHT - scrollbar_height) * picker->scrollbar.position / picker->scrollbar.max_position;
+        }
+        SDL_Rect scrollbar = {picker->width - SCROLLBAR_WIDTH, scrollbar_y, SCROLLBAR_WIDTH, scrollbar_height};
+        SDL_SetRenderDrawColor(picker->renderer, 100, 100, 100, 255);
+        SDL_RenderFillRect(picker->renderer, &scrollbar);
+    }
 
     // Render search bar
     SDL_Rect searchbar_bg = {0, 0, picker->width, SEARCHBAR_HEIGHT};
