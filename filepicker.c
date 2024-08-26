@@ -6,6 +6,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "lemon_ttf.xxd"
+
 #define MAX_PATH 1024
 #define DIRECTORY_COLOR                                                        \
   (SDL_Color) { 173, 216, 230, 255 } // Light blue color for directories
@@ -176,8 +178,19 @@ static inline FilePicker *initialize_file_picker(const char *initial_dir) {
     return NULL;
   }
 
-  picker->font = TTF_OpenFont("lemon.ttf", FONT_SIZE);
+  SDL_RWops *font_rw = SDL_RWFromMem(lemon_ttf, lemon_ttf_len);
+  if (!font_rw) {
+    fprintf(stderr, "Failed to create RWops for font: %s\n", SDL_GetError());
+    SDL_DestroyRenderer(picker->renderer);
+    SDL_DestroyWindow(picker->window);
+    free(picker);
+    return NULL;
+  }
+
+  picker->font = TTF_OpenFontRW(font_rw, 1, FONT_SIZE);
   if (!picker->font) {
+    fprintf(stderr, "Failed to load font: %s\n", TTF_GetError());
+    SDL_FreeRW(font_rw);
     SDL_DestroyRenderer(picker->renderer);
     SDL_DestroyWindow(picker->window);
     free(picker);
