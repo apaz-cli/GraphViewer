@@ -157,7 +157,10 @@ def generate_object_graph(gc_objects, _not_found=object()) -> dict:
     return {"nodes": nodes, "edges": edges}
 
 
-def output_object_graph_to_json(target=None, filename="object_graph.json"):
+import tempfile
+import os
+
+def output_object_graph_to_json(target=None, filename=None):
     all_objects = gc.get_objects()
 
     if target is None:
@@ -194,9 +197,16 @@ def output_object_graph_to_json(target=None, filename="object_graph.json"):
 
     graph = generate_object_graph(gc_objects)
 
+    if filename is None:
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.json')
+        filename = temp_file.name
+        temp_file.close()
+
     with open(filename, "w") as f:
         json.dump(graph, f, indent=2)
+    
     print(f"Object graph has been saved to {filename}")
+    return filename
 
 
 def graph_viewer(
@@ -214,8 +224,11 @@ def graph_viewer(
         )
         return
 
-    output_object_graph_to_json(target)
-    graph_viewer.run_graph_viewer("object_graph.json")
+    json_file = output_object_graph_to_json(target, output_file)
+    graph_viewer.run_graph_viewer(json_file)
+
+    if output_file is None:
+        os.unlink(json_file)  # Remove the temporary file
 
 
 # Example usage
