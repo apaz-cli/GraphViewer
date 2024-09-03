@@ -37,8 +37,9 @@ typedef struct {
   TTF_Font *font;
   SDL_RWops *font_rw;
   char current_dir[MAX_PATH];
-  FileEntry files[MAX_FILES];
+  FileEntry *files;
   int file_count;
+  int file_capacity;
   int selected_index;
   PickerScrollBar scrollbar;
   char search_text[MAX_PATH];
@@ -225,6 +226,17 @@ static inline FilePicker *initialize_file_picker(const char *initial_dir) {
   picker->is_scrolling = 0;
   picker->items_per_page = (picker->height - SEARCHBAR_HEIGHT) / ITEM_HEIGHT;
 
+  picker->file_capacity = MAX_FILES;
+  picker->files = (FileEntry *)malloc(picker->file_capacity * sizeof(FileEntry));
+  if (!picker->files) {
+    TTF_CloseFont(picker->font);
+    SDL_FreeRW(picker->font_rw);
+    SDL_DestroyRenderer(picker->renderer);
+    SDL_DestroyWindow(picker->window);
+    free(picker);
+    return NULL;
+  }
+
   get_directory_contents(picker);
   update_scroll(picker);
 
@@ -237,6 +249,7 @@ static inline void cleanup_file_picker(FilePicker *picker) {
     SDL_FreeRW(picker->font_rw);
     SDL_DestroyRenderer(picker->renderer);
     SDL_DestroyWindow(picker->window);
+    free(picker->files);
     free(picker);
   }
 }
@@ -258,9 +271,20 @@ static inline void get_directory_contents(FilePicker *picker) {
   picker->files[picker->file_count].is_dir = 1;
   picker->file_count++;
 
-  while ((entry = readdir(dir)) != NULL && picker->file_count < MAX_FILES) {
+  while ((entry = readdir(dir)) != NULL) {
     if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
       continue;
+
+    if (picker->file_count >= picker->file_capacity) {
+      picker->file_capacity *= 2;
+      FileEntry *new_files = (FileEntry *)realloc(picker->files, picker->file_capacity * sizeof(FileEntry));
+      if (!new_files) {
+        fprintf(stderr, "Failed to reallocate memory for files\n");
+        closedir(dir);
+        return;
+      }
+      picker->files = new_files;
+    }
 
     strncpy(picker->files[picker->file_count].name, entry->d_name, MAX_PATH);
     char* full_path = allocate_string(picker->current_dir);
