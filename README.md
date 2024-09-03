@@ -8,6 +8,8 @@ For viewing huge object graphs, and finding reference cycles.
 pip install objgraph_viewer
 ```
 
+
+## Usage
 ```python
 # Let's create some objects to visualize.
 class Needle:
