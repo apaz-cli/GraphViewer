@@ -1,3 +1,8 @@
+#ifdef PYTHON_MODULE
+#define PY_SSIZE_T_CLEAN
+#include <Python.h>
+#endif
+
 #include <SDL2/SDL.h>
 #include <SDL2/SDL2_gfxPrimitives.h>
 #include <SDL2/SDL_audio.h>
@@ -1595,3 +1600,32 @@ int main(int argc, char *argv[]) {
 
   return run_graph_viewer(argv[1]);
 }
+
+#ifdef PYTHON_MODULE
+static PyObject* py_run_graph_viewer(PyObject* self, PyObject* args) {
+    const char* filename;
+    if (!PyArg_ParseTuple(args, "s", &filename)) {
+        return NULL;
+    }
+    
+    int result = run_graph_viewer(filename);
+    return PyLong_FromLong(result);
+}
+
+static PyMethodDef GraphViewerMethods[] = {
+    {"run_graph_viewer", py_run_graph_viewer, METH_VARARGS, "Run the graph viewer with the given JSON file."},
+    {NULL, NULL, 0, NULL}
+};
+
+static struct PyModuleDef graphviewermodule = {
+    PyModuleDef_HEAD_INIT,
+    "graph_viewer",
+    "Graph Viewer module",
+    -1,
+    GraphViewerMethods
+};
+
+PyMODINIT_FUNC PyInit_graph_viewer(void) {
+    return PyModule_Create(&graphviewermodule);
+}
+#endif
