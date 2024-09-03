@@ -134,7 +134,6 @@ static inline void set_node_selection(AppState *app, int node_id);
 static inline void set_edge_selection(AppState *app, int edge_id);
 static inline void render_top_bar(SDL_Renderer *renderer, AppState *app);
 static inline void render_graph(SDL_Renderer *renderer, AppState *app);
-static inline void render_menus(SDL_Renderer *renderer, AppState *app);
 static inline void render_left_menu(SDL_Renderer *renderer, AppState *app);
 static inline void render_right_menu(SDL_Renderer *renderer, AppState *app);
 static inline void handle_input(SDL_Event *event, AppState *app);
@@ -906,7 +905,7 @@ static inline void render_left_menu(SDL_Renderer *renderer, AppState *app) {
       // Truncate the text if it's too long
       char truncated_text[MAX_LABEL_LENGTH * 2];
       int max_chars = available_width / (TTF_FontHeight(app->font_small) / 2);  // More accurate estimate
-      if (strlen(detail_text) > max_chars) {
+      if ((int)strlen(detail_text) > max_chars) {
         strncpy(truncated_text, detail_text, max_chars);
         truncated_text[max_chars] = '\0';
       } else {
@@ -971,9 +970,6 @@ static inline void render_right_menu(SDL_Renderer *renderer, AppState *app) {
   int y_offset = SEARCH_BAR_HEIGHT + 10;
   int nodes_rendered = 0;
   int item_height = 20;
-
-  // Calculate total content height
-  int total_content_height = app->visible_nodes_count * item_height;
 
   // Render scrollbar
   int scroll_area_height = app->window_height - SEARCH_BAR_HEIGHT - 20;
@@ -1397,7 +1393,6 @@ static inline void initialize_app(AppState *app, const char *graph_file) {
 
 static inline void render_top_bar(SDL_Renderer *renderer, AppState *app) {
   int left_menu_width = get_left_menu_width(app->window_width);
-  int right_menu_width = get_right_menu_width(app->window_width);
   int graph_width = get_graph_width(app->window_width);
 
   // Render top bar background
@@ -1592,7 +1587,9 @@ static inline int run_graph_viewer(const char *graph_file) {
   return 0;
 }
 
-int main(int argc, char *argv[]) {
+#ifndef PYTHON_MODULE
+
+int main(int argc, char **argv) {
   if (argc < 2) {
     fprintf(stderr, "Usage: %s <graph_file.json>\n", argv[0]);
     return 1;
@@ -1601,7 +1598,8 @@ int main(int argc, char *argv[]) {
   return run_graph_viewer(argv[1]);
 }
 
-#ifdef PYTHON_MODULE
+#else
+
 static PyObject* py_run_graph_viewer(PyObject* self, PyObject* args) {
     const char* filename;
     if (!PyArg_ParseTuple(args, "s", &filename)) {

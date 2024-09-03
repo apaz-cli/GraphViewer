@@ -1,17 +1,19 @@
 import gc
 import types
 from typing import Literal, Union
-import inspect
-import functools
-
-partial = functools.partial
-del functools
 from weakref import ReferenceType
 
 
-def generate_object_graph(gc_objects, _not_found=object()) -> dict:
-    import sys
+TargetType = Union[ReferenceType, Literal["pytorch"], None]
 
+
+def generate_object_graph(gc_objects: list[object]) -> dict:
+
+    import inspect
+    import sys
+    from functools import partial
+
+    _not_found = object()
     globals_id_to_name: dict[int, str] = {
         id(mod.__dict__): mod.__name__
         for mod in sys.modules.values()
@@ -84,12 +86,12 @@ def generate_object_graph(gc_objects, _not_found=object()) -> dict:
     nodes = []
     edges = []
 
-    class CM:
+    class _CM:
         @classmethod
         def foo(cls):
             pass
 
-    classmethodtype = type(CM.foo)
+    classmethodtype = type(_CM.foo)
 
     for obj in gc_objects:
         objids[id(obj)] = obj_id = n_obj
@@ -157,10 +159,7 @@ def generate_object_graph(gc_objects, _not_found=object()) -> dict:
     return {"nodes": nodes, "edges": edges}
 
 
-import tempfile
-import os
-
-def output_object_graph_to_json(target=None, filename=None):
+def collect_to_json(target: TargetType = None, filename: Union[str, None] = None):
     all_objects = gc.get_objects()
 
     if target is None:
@@ -194,27 +193,42 @@ def output_object_graph_to_json(target=None, filename=None):
     print(gc_objects)
 
     import json
+    import tempfile
 
     graph = generate_object_graph(gc_objects)
 
     if filename is None:
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.json')
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
         filename = temp_file.name
         temp_file.close()
 
+    assert isinstance(filename, str), "filename must be a string."
     with open(filename, "w") as f:
         json.dump(graph, f, indent=2)
-    
+
     print(f"Object graph has been saved to {filename}")
     return filename
 
 
-def graph_viewer(
-    target: Union[ReferenceType, Literal["pytorch"], None] = None,
+def view_json(filename: str):
+    import graph_viewer
+
+    graph_viewer.run_graph_viewer(filename)
+
+def collect_and_view(
+    target: TargetType = None,
     output_file: Union[str, None] = None,
 ):
+    """
+    Visualize the object graph.
+    """
+
+    json_file = collect_to_json(target, output_file)
+
     try:
         import graph_viewer
+
+        graph_viewer.run_graph_viewer(json_file)
     except ImportError:
         import sys
 
@@ -224,31 +238,3 @@ def graph_viewer(
         )
         return
 
-    json_file = output_object_graph_to_json(target, output_file)
-    graph_viewer.run_graph_viewer(json_file)
-
-    if output_file is None:
-        os.unlink(json_file)  # Remove the temporary file
-
-
-# Example usage
-if __name__ == "__main__":
-
-    class Needle:
-        def __str__(self):
-            return "Needle Object"
-
-    needle = Needle()
-    del Needle
-
-    # Create a weak reference to the needle
-    needle_ref = ReferenceType(needle)
-
-    # Create a container that holds the needle
-    haystack = [{"a": tuple}, tuple, [needle], (lambda x: x), 123, "hello"]
-
-    # Remove the original reference to needle
-    del needle
-
-    # Now haystack is the only object that holds a reference to the Needle object
-    output_object_graph_to_json(needle_ref)
