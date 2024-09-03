@@ -8,7 +8,7 @@ For viewing huge object graphs, and finding reference cycles.
 pip install objgraph_viewer
 ```
 
-```md
+```python
 # Let's create some objects to visualize.
 class Needle:
     def __str__(self):
@@ -26,7 +26,8 @@ haystack = [{"a": tuple}, tuple, [needle], (lambda x: x), 123, "hello"]
 # Remove the original reference to needle.
 # Now "haystack" is the only object that holds a reference to the Needle object.
 del needle
-
+```
+```python
 # Now, let's use the module to visualize the objects.
 import graph_viewer
 
