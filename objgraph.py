@@ -1,5 +1,6 @@
 import gc
 import types
+from typing import Literal, Union
 import inspect
 import functools
 
@@ -8,20 +9,10 @@ del functools
 from weakref import ReferenceType
 
 
-class CM:
-    @classmethod
-    def foo(cls):
-        pass
-
-
-classmethodtype = type(CM.foo)
 del CM
 
 
-not_found = object()
-
-
-def generate_object_graph(gc_objects) -> dict:
+def generate_object_graph(gc_objects, _not_found=object()) -> dict:
     import sys
 
     globals_id_to_name: dict[int, str] = {
@@ -36,7 +27,7 @@ def generate_object_graph(gc_objects) -> dict:
             return str(obj)
 
         if callable(obj) and (
-            (wrapped := getattr(obj, "__wrapped__", not_found)) is not not_found
+            (wrapped := getattr(obj, "__wrapped__", _not_found)) is not _not_found
         ):
             end = (
                 f" at {obj.__code__.co_filename}:{obj.__code__.co_firstlineno}"
@@ -75,7 +66,7 @@ def generate_object_graph(gc_objects) -> dict:
         if isinstance(obj, (list, tuple)):
             return str(obj)
         if isinstance(obj, dict):
-            if (mod_name := globals_id_to_name.get(_id, not_found)) is not not_found:
+            if (mod_name := globals_id_to_name.get(_id, _not_found)) is not _not_found:
                 return f"<module_globals {mod_name}>"
             return str(obj)
 
@@ -96,7 +87,12 @@ def generate_object_graph(gc_objects) -> dict:
     nodes = []
     edges = []
 
-    assert classmethodtype is not None
+    class CM:
+        @classmethod
+        def foo(cls):
+            pass
+
+    classmethodtype = type(CM.foo)
 
     for obj in gc_objects:
         objids[id(obj)] = obj_id = n_obj
@@ -204,6 +200,25 @@ def output_object_graph_to_json(target=None, filename="object_graph.json"):
     with open(filename, "w") as f:
         json.dump(graph, f, indent=2)
     print(f"Object graph has been saved to {filename}")
+
+
+def graph_viewer(
+    target: Union[ReferenceType, Literal["pytorch"], None] = None,
+    output_file: Union[str, None] = None,
+):
+    try:
+        import graph_viewer
+    except ImportError:
+        import sys
+
+        print(
+            "Please put the graph_viewer shared object, dylib, or dll in the proper place.",
+            file=sys.stderr,
+        )
+        return
+
+    output_object_graph_to_json(target)
+    graph_viewer.run_graph_viewer("object_graph.json")
 
 
 # Example usage
