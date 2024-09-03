@@ -2,7 +2,7 @@
 
 # https://github.com/libsdl-org/SDL/releases/latest/download/package.zip
 
-LIBS="-lSDL2 -lSDL2_gfx -lSDL2_ttf -lSDL2_mixer -lm -fopenmp"
+LIBS="-lSDL2 -lSDL2_gfx -lSDL2_ttf -lSDL2_mixer -lm"
 DEBUG="-fsanitize=address -g"
 PROD="-O3 -msse4.2 -march=native -mtune=native"
 
