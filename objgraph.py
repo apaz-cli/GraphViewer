@@ -9,9 +9,6 @@ del functools
 from weakref import ReferenceType
 
 
-del CM
-
-
 def generate_object_graph(gc_objects, _not_found=object()) -> dict:
     import sys
 
