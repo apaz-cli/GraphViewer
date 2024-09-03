@@ -143,6 +143,20 @@ static inline int is_directory(const char *path) {
   return S_ISDIR(statbuf.st_mode);
 }
 
+static inline char* allocate_string(const char* str) {
+    char* result = malloc(strlen(str) + 1);
+    if (result) {
+        strcpy(result, str);
+    }
+    return result;
+}
+
+static inline void free_if_not_null(char* str) {
+    if (str) {
+        free(str);
+    }
+}
+
 static inline void get_parent_directory(char *path) {
   char *last_slash = strrchr(path, '/');
   if (last_slash != NULL) {
@@ -247,10 +261,23 @@ static inline void get_directory_contents(FilePicker *picker) {
       continue;
 
     strncpy(picker->files[picker->file_count].name, entry->d_name, MAX_PATH);
-    char full_path[MAX_PATH];
-    snprintf(full_path, MAX_PATH, "%s/%s", picker->current_dir, entry->d_name);
-    picker->files[picker->file_count].is_dir = is_directory(full_path);
-    picker->file_count++;
+    char* full_path = allocate_string(picker->current_dir);
+    char* temp = allocate_string("/");
+    char* temp2 = allocate_string(entry->d_name);
+    
+    if (full_path && temp && temp2) {
+        full_path = realloc(full_path, strlen(full_path) + strlen(temp) + strlen(temp2) + 1);
+        if (full_path) {
+            strcat(full_path, temp);
+            strcat(full_path, temp2);
+            picker->files[picker->file_count].is_dir = is_directory(full_path);
+            picker->file_count++;
+        }
+    }
+    
+    free_if_not_null(full_path);
+    free_if_not_null(temp);
+    free_if_not_null(temp2);
   }
 
   closedir(dir);
@@ -442,28 +469,55 @@ static inline void handle_events(FilePicker *picker, SDL_Event *event, int *quit
         if (strcmp(picker->files[picker->selected_index].name, "..") == 0) {
           if (strcmp(picker->current_dir, ".") == 0) {
             // If current dir is ".", get the absolute path of the parent
-            char abs_path[MAX_PATH];
-            if (realpath("..", abs_path) != NULL) {
-              strncpy(picker->current_dir, abs_path, MAX_PATH);
+            char* abs_path = allocate_string("");
+            if (abs_path) {
+              if (realpath("..", abs_path) != NULL) {
+                strncpy(picker->current_dir, abs_path, MAX_PATH);
+              }
+              free(abs_path);
             }
           } else {
             get_parent_directory(picker->current_dir);
           }
         } else {
-          char new_dir[MAX_PATH];
-          snprintf(new_dir, MAX_PATH, "%s/%s", picker->current_dir,
-                   picker->files[picker->selected_index].name);
-          strncpy(picker->current_dir, new_dir, MAX_PATH);
+          char* new_dir = allocate_string(picker->current_dir);
+          char* temp = allocate_string("/");
+          char* temp2 = allocate_string(picker->files[picker->selected_index].name);
+          
+          if (new_dir && temp && temp2) {
+            new_dir = realloc(new_dir, strlen(new_dir) + strlen(temp) + strlen(temp2) + 1);
+            if (new_dir) {
+              strcat(new_dir, temp);
+              strcat(new_dir, temp2);
+              strncpy(picker->current_dir, new_dir, MAX_PATH);
+            }
+          }
+          
+          free_if_not_null(new_dir);
+          free_if_not_null(temp);
+          free_if_not_null(temp2);
         }
         get_directory_contents(picker);
         picker->selected_index = 0;
         picker->scroll_offset = 0;
       } else {
-        char full_path[MAX_PATH];
-        snprintf(full_path, MAX_PATH, "%s/%s", picker->current_dir,
-                 picker->files[picker->selected_index].name);
-        *selected_file = strdup(full_path);
-        *quit = 1;
+        char* full_path = allocate_string(picker->current_dir);
+        char* temp = allocate_string("/");
+        char* temp2 = allocate_string(picker->files[picker->selected_index].name);
+        
+        if (full_path && temp && temp2) {
+          full_path = realloc(full_path, strlen(full_path) + strlen(temp) + strlen(temp2) + 1);
+          if (full_path) {
+            strcat(full_path, temp);
+            strcat(full_path, temp2);
+            *selected_file = strdup(full_path);
+            *quit = 1;
+          }
+        }
+        
+        free_if_not_null(full_path);
+        free_if_not_null(temp);
+        free_if_not_null(temp2);
       }
       break;
     case SDLK_BACKSPACE: {
