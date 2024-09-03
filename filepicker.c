@@ -96,17 +96,15 @@ static inline int compare_file_entries(const void *a, const void *b) {
 static inline char *show_file_picker(const char *initial_dir);
 
 int main(int argc, char *argv[]) {
-  const char *initial_dir = ".";
+  char *initial_dir = ".";
 
   // Check if an initial directory was provided as a command-line argument
   if (argc > 1) {
     initial_dir = argv[1];
   } else {
     // Use current working directory if no argument is provided
-    char cwd[MAX_PATH];
-    if (getcwd(cwd, sizeof(cwd)) != NULL) {
-      initial_dir = cwd;
-    } else {
+    initial_dir = getcwd(NULL, 0);
+    if (initial_dir == NULL) {
       fprintf(stderr, "Error getting current working directory\n");
       return 1;
     }
@@ -132,6 +130,10 @@ int main(int argc, char *argv[]) {
 
   TTF_Quit();
   SDL_Quit();
+
+  if (initial_dir != "." && initial_dir != argv[1]) {
+    free(initial_dir);
+  }
 
   return 0;
 }
