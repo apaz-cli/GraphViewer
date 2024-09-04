@@ -1,0 +1,21 @@
+[project]
+name = "graph_viewer"
+version = "0.1.0"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.cibuildwheel]
+skip = [
+  "*_i686", # "No package SDL2-devel available."
+  "*musllinux*", # "sh: yum: not found"
+]
+
+[tool.cibuildwheel.linux]
+before-all = [
+    "yum install -y SDL2-devel",
+    "yum install -y SDL2_ttf-devel",
+    "yum install -y SDL2_gfx-devel",
+    "yum install -y SDL2_mixer-devel",
+]
