@@ -1353,46 +1353,55 @@ static inline void handle_input(SDL_Event *event, AppState *app) {
 }
 
 static inline void initialize_app(AppState *app, const char *graph_file) {
+  DEBUG_PRINT("Initializing app with graph file: %s\n", graph_file);
+
+  DEBUG_PRINT("Loading graph\n");
   app->graph = load_graph(graph_file);
   if (!app->graph) {
     fprintf(stderr, "Failed to load graph\n");
     exit(1);
   }
+  DEBUG_PRINT("Graph loaded successfully. Node count: %d, Edge count: %d\n", app->graph->node_count, app->graph->edge_count);
 
+  DEBUG_PRINT("Initializing camera\n");
   app->camera.zoom = 1.0f;
   app->camera.position = (Vec2f){0, 0};
 
+  DEBUG_PRINT("Getting display mode\n");
   SDL_DisplayMode dm;
   if (SDL_GetCurrentDisplayMode(0, &dm) != 0) {
     fprintf(stderr, "SDL_GetCurrentDisplayMode failed: %s\n", SDL_GetError());
     exit(1);
   }
+  DEBUG_PRINT("Display mode: %dx%d\n", dm.w, dm.h);
 
   app->window_width = dm.w / 2;
   app->window_height = dm.h / 2;
   app->nodes_per_page = (app->window_height - SEARCH_BAR_HEIGHT - 20) / 20;
+  DEBUG_PRINT("Window size set to %dx%d, Nodes per page: %d\n", app->window_width, app->window_height, app->nodes_per_page);
 
+  DEBUG_PRINT("Allocating memory for selected nodes\n");
   app->selected_nodes = calloc(app->graph->node_count, sizeof(int));
   if (!app->selected_nodes) {
     fprintf(stderr, "Failed to allocate memory for selected nodes\n");
     exit(1);
   }
 
+  DEBUG_PRINT("Initializing app state variables\n");
   app->selection_mode = SELECT_SINGLE;
   app->right_scroll_position = 0;
   app->left_scroll_position = 0;
   app->visible_nodes_count = app->graph->node_count;
   app->mouse_position = (Vec2f){0, 0};
   app->filter_referenced = 0;
-
   app->hovered_edge = -1;
   app->hovered_node = -1;
-
   app->is_dragging_left_scrollbar = 0;
   app->is_dragging_right_scrollbar = 0;
   app->drag_start_y = 0;
   app->drag_start_scroll = 0;
 
+  DEBUG_PRINT("Loading fonts\n");
   SDL_RWops *font_rw = SDL_RWFromMem(lemon_ttf, lemon_ttf_len);
   if (!font_rw) {
     fprintf(stderr, "Failed to create RWops for font: %s\n", SDL_GetError());
@@ -1409,13 +1418,18 @@ static inline void initialize_app(AppState *app, const char *graph_file) {
     fprintf(stderr, "TTF_OpenFontRW: %s\n", TTF_GetError());
     exit(1);
   }
+  DEBUG_PRINT("Fonts loaded successfully\n");
 
+  DEBUG_PRINT("Initializing search bar\n");
   memset(app->search_bar.text, 0, MAX_SEARCH_LENGTH);
 
+  DEBUG_PRINT("Setting up open button\n");
   int left_menu_width = get_left_menu_width(app->window_width);
   app->open_button = (SDL_Rect){left_menu_width + 10, 5, OPEN_BUTTON_WIDTH,
                                 TOP_BAR_HEIGHT - 10};
   update_open_button_position(app);
+
+  DEBUG_PRINT("App initialization complete\n");
 }
 
 static inline void render_top_bar(SDL_Renderer *renderer, AppState *app) {
