@@ -197,10 +197,11 @@ static inline GraphData *load_graph(const char *filename) {
   DEBUG_PRINT("Loading graph from file: %s\n", filename);
 
   // Read the entire file
+  yyjson_read_flag flg = 0;
   yyjson_read_err err;
-  yyjson_doc *doc = yyjson_read_file(filename, 0, &err);
+  yyjson_doc *doc = yyjson_read_file(filename, flg, NULL, &err);
   if (!doc) {
-    DEBUG_PRINT("Error reading JSON file: %s\n", err.msg);
+    DEBUG_PRINT("Error reading JSON file: %s at position %zu\n", err.msg, err.pos);
     return create_graph(0, 0);
   }
 
