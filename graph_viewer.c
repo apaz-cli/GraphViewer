@@ -22,11 +22,9 @@
 #include "lemon_ttf.xxd"
 
 // Debug macro
-#ifdef DEBUG
-#define DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__)
-#else
-#define DEBUG_PRINT(...) ((void)0)
-#endif
+#define DBG 1
+#define DEBUG_PRINT(...) (DBG ? fprintf(stderr, __VA_ARGS__) : 0)
+
 
 // Configuration constants
 #define FPS 60
