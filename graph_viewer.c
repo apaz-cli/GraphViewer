@@ -1263,6 +1263,9 @@ static inline void handle_input(SDL_Event *event, AppState *app) {
     case SDLK_TAB:
       cycle_selection_mode(app);
       break;
+    case SDLK_TAB:
+      cycle_selection_mode(app);
+      break;
     case SDLK_PAGEUP:
     case SDLK_PAGEDOWN:
     case SDLK_HOME:
