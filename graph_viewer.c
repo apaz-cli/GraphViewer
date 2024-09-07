@@ -23,7 +23,7 @@
 
 // Debug macro
 #define DBG 1
-#define DEBUG_PRINT(...) (DBG ? fprintf(stderr, __VA_ARGS__) : 0)
+#define DEBUG_PRINT(...) do { if (DBG) fprintf(stderr, "[DEBUG] %s:%d: ", __func__, __LINE__); if (DBG) fprintf(stderr, __VA_ARGS__); } while (0)
 
 
 // Configuration constants
@@ -1525,20 +1525,26 @@ static inline void reinitialize_app(AppState *app, const char *graph_file) {
 }
 
 static inline int run_graph_viewer(const char *graph_file) {
+  DEBUG_PRINT("Starting run_graph_viewer\n");
+
+  DEBUG_PRINT("Initializing SDL\n");
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
     fprintf(stderr, "SDL could not initialize! SDL_Error: %s\n",
             SDL_GetError());
     return 1;
   }
 
+  DEBUG_PRINT("Initializing TTF\n");
   if (TTF_Init() == -1) {
     fprintf(stderr, "TTF_Init: %s\n", TTF_GetError());
     return 1;
   }
 
+  DEBUG_PRINT("Initializing app\n");
   AppState app;
   initialize_app(&app, graph_file);
 
+  DEBUG_PRINT("Creating window\n");
   SDL_Window *window = SDL_CreateWindow(
       "Graph Viewer", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
       app.window_width, app.window_height, SDL_WINDOW_RESIZABLE);
@@ -1548,6 +1554,7 @@ static inline int run_graph_viewer(const char *graph_file) {
     return 1;
   }
 
+  DEBUG_PRINT("Creating renderer\n");
   SDL_Renderer *renderer =
       SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
   if (!renderer) {
@@ -1556,12 +1563,14 @@ static inline int run_graph_viewer(const char *graph_file) {
     return 1;
   }
 
+  DEBUG_PRINT("Initializing audio\n");
   if (Mix_OpenAudio(44100, AUDIO_S16SYS, 2, 512) < 0) {
     fprintf(stderr, "SDL_mixer could not initialize! SDL_mixer Error: %s\n",
             Mix_GetError());
     return 1;
   }
 
+  DEBUG_PRINT("Loading sound\n");
   SDL_RWops *rw = SDL_RWFromMem(bell_wav, bell_wav_len);
   Mix_Chunk *sound = Mix_LoadWAV_RW(rw, 1);
   if (!sound) {
@@ -1575,9 +1584,11 @@ static inline int run_graph_viewer(const char *graph_file) {
   Uint32 frameStart;
   int frameTime;
 
+  DEBUG_PRINT("Entering main loop\n");
   while (!quit) {
     frameStart = SDL_GetTicks();
 
+    DEBUG_PRINT("Handling events\n");
     while (SDL_PollEvent(&event)) {
       if (event.type == SDL_QUIT) {
         quit = 1;
@@ -1586,14 +1597,20 @@ static inline int run_graph_viewer(const char *graph_file) {
       }
     }
 
+    DEBUG_PRINT("Clearing renderer\n");
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
 
+    DEBUG_PRINT("Rendering graph\n");
     render_graph(renderer, &app);
+    DEBUG_PRINT("Rendering left menu\n");
     render_left_menu(renderer, &app);
+    DEBUG_PRINT("Rendering right menu\n");
     render_right_menu(renderer, &app);
+    DEBUG_PRINT("Rendering top bar\n");
     render_top_bar(renderer, &app);
 
+    DEBUG_PRINT("Presenting renderer\n");
     SDL_RenderPresent(renderer);
 
     frameTime = SDL_GetTicks() - frameStart;
@@ -1602,6 +1619,7 @@ static inline int run_graph_viewer(const char *graph_file) {
     }
   }
 
+  DEBUG_PRINT("Cleaning up\n");
   Mix_FreeChunk(sound);
   Mix_CloseAudio();
   cleanup_app(&app);
@@ -1610,6 +1628,7 @@ static inline int run_graph_viewer(const char *graph_file) {
   TTF_Quit();
   SDL_Quit();
 
+  DEBUG_PRINT("Exiting run_graph_viewer\n");
   return 0;
 }
 
