@@ -21,6 +21,13 @@
 #include "cJSON.h"
 #include "lemon_ttf.xxd"
 
+// Debug macro
+#ifdef DEBUG
+#define DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__)
+#else
+#define DEBUG_PRINT(...) ((void)0)
+#endif
+
 // Configuration constants
 #define FPS 60
 #define FRAME_DELAY (1000 / FPS)
