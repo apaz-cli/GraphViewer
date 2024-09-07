@@ -260,11 +260,7 @@ static inline GraphData *load_graph(const char *filename) {
         (rand() % (2 * RAND_XY_INIT_RANGE)) - RAND_XY_INIT_RANGE;
     graph->nodes[i].position.y =
         (rand() % (2 * RAND_XY_INIT_RANGE)) - RAND_XY_INIT_RANGE;
-
-    const char *label =
-        cJSON_GetObjectItemCaseSensitive(node, "label")->valuestring;
-    graph->nodes[i].label = strdup(label);
-
+    graph->nodes[i].label = cJSON_GetObjectItemCaseSensitive(node, "label")->valuestring;
     graph->nodes[i].visible = 1;
     DEBUG_PRINT("Node %d: id=%d, label=%s\n", i, graph->nodes[i].id, graph->nodes[i].label);
   }
@@ -276,15 +272,11 @@ static inline GraphData *load_graph(const char *filename) {
         cJSON_GetObjectItemCaseSensitive(edge, "source")->valueint;
     graph->edges[i].target =
         cJSON_GetObjectItemCaseSensitive(edge, "target")->valueint;
-
-    const char *label =
-        cJSON_GetObjectItemCaseSensitive(edge, "label")->valuestring;
-    graph->edges[i].label = strdup(label);
+    graph->edges[i].label = cJSON_GetObjectItemCaseSensitive(edge, "label")->valuestring;
     DEBUG_PRINT("Edge %d: source=%d, target=%d, label=%s\n", i, graph->edges[i].source, graph->edges[i].target, graph->edges[i].label);
   }
 
-  cJSON_Delete(json);
-  DEBUG_PRINT("JSON object deleted\n");
+  // Do not call cJSON_Delete(json), since we alundered the memory for the labels.
   DEBUG_PRINT("Graph loading complete\n");
   return graph;
 }
