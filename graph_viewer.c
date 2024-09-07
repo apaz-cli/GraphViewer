@@ -219,31 +219,40 @@ static inline GraphData *load_graph(const char *filename) {
     return create_graph(0, 0);
   }
 
+  DEBUG_PRINT("Reading file content\n");
   size_t read_size = fread(json_string, 1, file_size, file);
   json_string[read_size] = '\0';
+  DEBUG_PRINT("Read %zu bytes from file\n", read_size);
 
   fclose(file);
+  DEBUG_PRINT("File closed\n");
 
+  DEBUG_PRINT("Parsing JSON\n");
   cJSON *json = cJSON_Parse(json_string);
   free(json_string);
 
   if (!json) {
-    printf("Error parsing JSON\n");
+    DEBUG_PRINT("Error parsing JSON\n");
     return create_graph(0, 0);
   }
+  DEBUG_PRINT("JSON parsed successfully\n");
 
   cJSON *nodes = cJSON_GetObjectItemCaseSensitive(json, "nodes");
   cJSON *edges = cJSON_GetObjectItemCaseSensitive(json, "edges");
 
   int node_count = nodes ? cJSON_GetArraySize(nodes) : 0;
   int edge_count = edges ? cJSON_GetArraySize(edges) : 0;
+  DEBUG_PRINT("Node count: %d, Edge count: %d\n", node_count, edge_count);
 
+  DEBUG_PRINT("Creating graph\n");
   GraphData *graph = create_graph(node_count, edge_count);
   if (!graph) {
+    DEBUG_PRINT("Failed to create graph\n");
     cJSON_Delete(json);
     return create_graph(0, 0);
   }
 
+  DEBUG_PRINT("Populating nodes\n");
   for (int i = 0; i < node_count; i++) {
     cJSON *node = cJSON_GetArrayItem(nodes, i);
     graph->nodes[i].id = cJSON_GetObjectItemCaseSensitive(node, "id")->valueint;
@@ -257,8 +266,10 @@ static inline GraphData *load_graph(const char *filename) {
     graph->nodes[i].label = strdup(label);
 
     graph->nodes[i].visible = 1;
+    DEBUG_PRINT("Node %d: id=%d, label=%s\n", i, graph->nodes[i].id, graph->nodes[i].label);
   }
 
+  DEBUG_PRINT("Populating edges\n");
   for (int i = 0; i < edge_count; i++) {
     cJSON *edge = cJSON_GetArrayItem(edges, i);
     graph->edges[i].source =
@@ -269,9 +280,12 @@ static inline GraphData *load_graph(const char *filename) {
     const char *label =
         cJSON_GetObjectItemCaseSensitive(edge, "label")->valuestring;
     graph->edges[i].label = strdup(label);
+    DEBUG_PRINT("Edge %d: source=%d, target=%d, label=%s\n", i, graph->edges[i].source, graph->edges[i].target, graph->edges[i].label);
   }
 
   cJSON_Delete(json);
+  DEBUG_PRINT("JSON object deleted\n");
+  DEBUG_PRINT("Graph loading complete\n");
   return graph;
 }
 
