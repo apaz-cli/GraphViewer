@@ -18,7 +18,7 @@
 #include <string.h>
 
 #include "bell_wav.xxd"
-#include "cJSON.h"
+#include "yyjson.h"
 #include "lemon_ttf.xxd"
 
 // Debug macro
@@ -194,89 +194,87 @@ static inline void free_graph(GraphData *graph) {
 }
 
 static inline GraphData *load_graph(const char *filename) {
-  FILE *file = fopen(filename, "r");
-  if (!file) {
-    if (filename) {
-      printf("Failed to open file: %s\n", filename);
-    }
+  DEBUG_PRINT("Loading graph from file: %s\n", filename);
+
+  // Read the entire file
+  yyjson_read_err err;
+  yyjson_doc *doc = yyjson_read_file(filename, 0, &err);
+  if (!doc) {
+    DEBUG_PRINT("Error reading JSON file: %s\n", err.msg);
     return create_graph(0, 0);
   }
 
-  fseek(file, 0, SEEK_END);
-  long file_size = ftell(file);
-  fseek(file, 0, SEEK_SET);
-
-  if (file_size == -1) {
-    printf("Failed to get file size\n");
-    fclose(file);
+  // Get the root object
+  yyjson_val *root = yyjson_doc_get_root(doc);
+  if (!yyjson_is_obj(root)) {
+    DEBUG_PRINT("Root is not an object\n");
+    yyjson_doc_free(doc);
     return create_graph(0, 0);
   }
 
-  char *json_string = malloc(file_size + 1);
-  if (!json_string) {
-    printf("Failed to allocate memory for JSON string\n");
-    fclose(file);
+  // Get nodes and edges arrays
+  yyjson_val *nodes = yyjson_obj_get(root, "nodes");
+  yyjson_val *edges = yyjson_obj_get(root, "edges");
+
+  if (!yyjson_is_arr(nodes) || !yyjson_is_arr(edges)) {
+    DEBUG_PRINT("Nodes or edges is not an array\n");
+    yyjson_doc_free(doc);
     return create_graph(0, 0);
   }
 
-  DEBUG_PRINT("Reading file content\n");
-  size_t read_size = fread(json_string, 1, file_size, file);
-  json_string[read_size] = '\0';
-  DEBUG_PRINT("Read %zu bytes from file\n", read_size);
+  size_t node_count = yyjson_arr_size(nodes);
+  size_t edge_count = yyjson_arr_size(edges);
+  DEBUG_PRINT("Node count: %zu, Edge count: %zu\n", node_count, edge_count);
 
-  fclose(file);
-  DEBUG_PRINT("File closed\n");
-
-  DEBUG_PRINT("Parsing JSON\n");
-  cJSON *json = cJSON_Parse(json_string);
-  free(json_string);
-
-  if (!json) {
-    DEBUG_PRINT("Error parsing JSON\n");
-    return create_graph(0, 0);
-  }
-  DEBUG_PRINT("JSON parsed successfully\n");
-
-  cJSON *nodes = cJSON_GetObjectItemCaseSensitive(json, "nodes");
-  cJSON *edges = cJSON_GetObjectItemCaseSensitive(json, "edges");
-
-  int node_count = nodes ? cJSON_GetArraySize(nodes) : 0;
-  int edge_count = edges ? cJSON_GetArraySize(edges) : 0;
-  DEBUG_PRINT("Node count: %d, Edge count: %d\n", node_count, edge_count);
-
-  DEBUG_PRINT("Creating graph\n");
   GraphData *graph = create_graph(node_count, edge_count);
   if (!graph) {
     DEBUG_PRINT("Failed to create graph\n");
-    cJSON_Delete(json);
+    yyjson_doc_free(doc);
     return create_graph(0, 0);
   }
 
   DEBUG_PRINT("Populating nodes\n");
-  for (int i = 0; i < node_count; i++) {
-    cJSON *node = cJSON_GetArrayItem(nodes, i);
-    graph->nodes[i].id = cJSON_GetObjectItemCaseSensitive(node, "id")->valueint;
-    graph->nodes[i].position.x =
-        (rand() % (2 * RAND_XY_INIT_RANGE)) - RAND_XY_INIT_RANGE;
-    graph->nodes[i].position.y =
-        (rand() % (2 * RAND_XY_INIT_RANGE)) - RAND_XY_INIT_RANGE;
-    graph->nodes[i].label = cJSON_GetObjectItemCaseSensitive(node, "label")->valuestring;
-    graph->nodes[i].visible = 1;
-    DEBUG_PRINT("Node %d: id=%d, label=%s\n", i, graph->nodes[i].id, graph->nodes[i].label);
+  yyjson_arr_iter node_iter;
+  yyjson_arr_iter_init(nodes, &node_iter);
+  yyjson_val *node;
+  size_t idx = 0;
+  while ((node = yyjson_arr_iter_next(&node_iter))) {
+    yyjson_val *id = yyjson_obj_get(node, "id");
+    yyjson_val *label = yyjson_obj_get(node, "label");
+    if (!yyjson_is_int(id) || !yyjson_is_str(label)) {
+      DEBUG_PRINT("Invalid node data\n");
+      continue;
+    }
+    graph->nodes[idx].id = yyjson_get_int(id);
+    graph->nodes[idx].position.x = (rand() % (2 * RAND_XY_INIT_RANGE)) - RAND_XY_INIT_RANGE;
+    graph->nodes[idx].position.y = (rand() % (2 * RAND_XY_INIT_RANGE)) - RAND_XY_INIT_RANGE;
+    graph->nodes[idx].label = strdup(yyjson_get_str(label));
+    graph->nodes[idx].visible = 1;
+    DEBUG_PRINT("Node %zu: id=%d, label=%s\n", idx, graph->nodes[idx].id, graph->nodes[idx].label);
+    idx++;
   }
 
   DEBUG_PRINT("Populating edges\n");
-  for (int i = 0; i < edge_count; i++) {
-    cJSON *edge = cJSON_GetArrayItem(edges, i);
-    graph->edges[i].source =
-        cJSON_GetObjectItemCaseSensitive(edge, "source")->valueint;
-    graph->edges[i].target =
-        cJSON_GetObjectItemCaseSensitive(edge, "target")->valueint;
-    graph->edges[i].label = cJSON_GetObjectItemCaseSensitive(edge, "label")->valuestring;
-    DEBUG_PRINT("Edge %d: source=%d, target=%d, label=%s\n", i, graph->edges[i].source, graph->edges[i].target, graph->edges[i].label);
+  yyjson_arr_iter edge_iter;
+  yyjson_arr_iter_init(edges, &edge_iter);
+  yyjson_val *edge;
+  idx = 0;
+  while ((edge = yyjson_arr_iter_next(&edge_iter))) {
+    yyjson_val *source = yyjson_obj_get(edge, "source");
+    yyjson_val *target = yyjson_obj_get(edge, "target");
+    yyjson_val *label = yyjson_obj_get(edge, "label");
+    if (!yyjson_is_int(source) || !yyjson_is_int(target) || !yyjson_is_str(label)) {
+      DEBUG_PRINT("Invalid edge data\n");
+      continue;
+    }
+    graph->edges[idx].source = yyjson_get_int(source);
+    graph->edges[idx].target = yyjson_get_int(target);
+    graph->edges[idx].label = strdup(yyjson_get_str(label));
+    DEBUG_PRINT("Edge %zu: source=%d, target=%d, label=%s\n", idx, graph->edges[idx].source, graph->edges[idx].target, graph->edges[idx].label);
+    idx++;
   }
 
-  // Do not call cJSON_Delete(json), since we alundered the memory for the labels.
+  yyjson_doc_free(doc);
   DEBUG_PRINT("Graph loading complete\n");
   return graph;
 }
