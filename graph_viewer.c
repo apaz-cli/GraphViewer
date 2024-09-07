@@ -75,6 +75,7 @@ typedef struct {
   GraphEdge *edges;
   int node_count;
   int edge_count;
+  yyjson_doc *doc;
 } GraphData;
 
 typedef enum {
@@ -182,11 +183,8 @@ static inline GraphData *create_graph(int node_count, int edge_count) {
 static inline void free_graph(GraphData *graph) {
   if (!graph)
     return;
-  for (int i = 0; i < graph->node_count; i++) {
-    free(graph->nodes[i].label);
-  }
-  for (int i = 0; i < graph->edge_count; i++) {
-    free(graph->edges[i].label);
+  if (graph->doc) {
+    yyjson_doc_free(graph->doc);
   }
   free(graph->nodes);
   free(graph->edges);
@@ -234,6 +232,8 @@ static inline GraphData *load_graph(const char *filename) {
     return create_graph(0, 0);
   }
 
+  graph->doc = doc;
+
   DEBUG_PRINT("Populating nodes\n");
   yyjson_arr_iter node_iter;
   yyjson_arr_iter_init(nodes, &node_iter);
@@ -249,7 +249,7 @@ static inline GraphData *load_graph(const char *filename) {
     graph->nodes[idx].id = yyjson_get_int(id);
     graph->nodes[idx].position.x = (rand() % (2 * RAND_XY_INIT_RANGE)) - RAND_XY_INIT_RANGE;
     graph->nodes[idx].position.y = (rand() % (2 * RAND_XY_INIT_RANGE)) - RAND_XY_INIT_RANGE;
-    graph->nodes[idx].label = strdup(yyjson_get_str(label));
+    graph->nodes[idx].label = yyjson_get_str(label);
     graph->nodes[idx].visible = 1;
     DEBUG_PRINT("Node %zu: id=%d, label=%s\n", idx, graph->nodes[idx].id, graph->nodes[idx].label);
     idx++;
@@ -270,12 +270,11 @@ static inline GraphData *load_graph(const char *filename) {
     }
     graph->edges[idx].source = yyjson_get_int(source);
     graph->edges[idx].target = yyjson_get_int(target);
-    graph->edges[idx].label = strdup(yyjson_get_str(label));
+    graph->edges[idx].label = yyjson_get_str(label);
     DEBUG_PRINT("Edge %zu: source=%d, target=%d, label=%s\n", idx, graph->edges[idx].source, graph->edges[idx].target, graph->edges[idx].label);
     idx++;
   }
 
-  yyjson_doc_free(doc);
   DEBUG_PRINT("Graph loading complete\n");
   return graph;
 }
