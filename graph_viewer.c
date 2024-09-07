@@ -1418,12 +1418,9 @@ static inline void initialize_app(AppState *app, const char *graph_file) {
     fprintf(stderr, "TTF_OpenFontRW: %s\n", TTF_GetError());
     exit(1);
   }
-  DEBUG_PRINT("Fonts loaded successfully\n");
 
-  DEBUG_PRINT("Initializing search bar\n");
   memset(app->search_bar.text, 0, MAX_SEARCH_LENGTH);
 
-  DEBUG_PRINT("Setting up open button\n");
   int left_menu_width = get_left_menu_width(app->window_width);
   app->open_button = (SDL_Rect){left_menu_width + 10, 5, OPEN_BUTTON_WIDTH,
                                 TOP_BAR_HEIGHT - 10};
