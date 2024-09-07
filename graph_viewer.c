@@ -32,7 +32,6 @@
 #define TOP_BAR_HEIGHT 40
 #define OPEN_BUTTON_WIDTH 100
 
-
 #define LAYOUT_AREA_MULTIPLIER 1000
 #define FORCE_ITERATIONS 100
 #define FORCE_COOLING_FACTOR 1
@@ -129,7 +128,7 @@ static inline void apply_fruchterman_reingold_layout(GraphData *graph);
 static inline void update_node_visibility(AppState *app);
 static inline void cycle_selection_mode(AppState *app);
 static inline void update_open_button_position(AppState *app);
-static inline char* handle_open_button_click(void);
+static inline char *handle_open_button_click(void);
 static inline void set_node_selection(AppState *app, int node_id);
 static inline void set_edge_selection(AppState *app, int edge_id);
 static inline void render_top_bar(SDL_Renderer *renderer, AppState *app);
@@ -517,15 +516,15 @@ static inline void set_edge_selection(AppState *app, int edge_id) {
   app->left_scroll_position = 0; // Reset left menu scroll position
 }
 
-static inline void render_label_background(SDL_Renderer *renderer, int x, int y, int width,
-                             int height) {
+static inline void render_label_background(SDL_Renderer *renderer, int x, int y,
+                                           int width, int height) {
   SDL_Rect bg_rect = {x - 2, y - 2, width + 4, height + 4};
   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 200);
   SDL_RenderFillRect(renderer, &bg_rect);
 }
 
 static inline void render_hover_label(SDL_Renderer *renderer, AppState *app,
-                        const char *label, int x, int y) {
+                                      const char *label, int x, int y) {
   if (label == NULL || strlen(label) == 0) {
     return;
   }
@@ -731,8 +730,9 @@ static inline void render_graph(SDL_Renderer *renderer, AppState *app) {
   }
 }
 
-static inline void render_label(SDL_Renderer *renderer, const char *text, int x, int y,
-                  TTF_Font *font, SDL_Color color, int max_width) {
+static inline void render_label(SDL_Renderer *renderer, const char *text, int x,
+                                int y, TTF_Font *font, SDL_Color color,
+                                int max_width) {
   SDL_Surface *surface = TTF_RenderText_Solid(font, text, color);
   SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
 
@@ -753,15 +753,20 @@ static inline void render_label(SDL_Renderer *renderer, const char *text, int x,
   SDL_DestroyTexture(texture);
 }
 
-static inline SDL_Rect render_scrollbar(SDL_Renderer *renderer, int x, int y, int width, int height,
-                          int total_items, int visible_items, int scroll_position) {
+static inline SDL_Rect render_scrollbar(SDL_Renderer *renderer, int x, int y,
+                                        int width, int height, int total_items,
+                                        int visible_items,
+                                        int scroll_position) {
   int content_height = total_items * 20; // Assuming each item is 20 pixels high
   float visible_ratio = (float)height / content_height;
   int scrollbar_height = (int)(visible_ratio * height);
-  scrollbar_height = (scrollbar_height < 20) ? 20 : scrollbar_height; // Minimum scrollbar height
+  scrollbar_height = (scrollbar_height < 20)
+                         ? 20
+                         : scrollbar_height; // Minimum scrollbar height
 
   int max_scroll = content_height - height;
-  float scroll_ratio = (max_scroll > 0) ? (float)scroll_position / max_scroll : 0;
+  float scroll_ratio =
+      (max_scroll > 0) ? (float)scroll_position / max_scroll : 0;
   int scrollbar_y = y + (int)(scroll_ratio * (height - scrollbar_height));
 
   SDL_Rect scrollbar_bg = {x, y, width, height};
@@ -774,29 +779,33 @@ static inline SDL_Rect render_scrollbar(SDL_Renderer *renderer, int x, int y, in
     SDL_RenderFillRect(renderer, &scrollbar_handle);
   }
 
-  return scrollbar_bg;  // Return the entire scrollbar area
+  return scrollbar_bg; // Return the entire scrollbar area
 }
 
-static inline void handle_menu_scroll(int *scroll_position, int scroll_amount, int total_items,
-                        int visible_items, int item_height) {
+static inline void handle_menu_scroll(int *scroll_position, int scroll_amount,
+                                      int total_items, int visible_items,
+                                      int item_height) {
   int max_scroll = fmax(0, (total_items - visible_items) * item_height);
-  *scroll_position = fmax(0, fmin(*scroll_position - scroll_amount, max_scroll));
-  
+  *scroll_position =
+      fmax(0, fmin(*scroll_position - scroll_amount, max_scroll));
+
   // Ensure we don't scroll past the end of the content
   if (*scroll_position > max_scroll) {
     *scroll_position = max_scroll;
   }
 }
 
-static inline int is_mouse_over_menu_item(int mouseX, int mouseY, int itemY, int menuX,
-                            int menuWidth, int itemHeight) {
+static inline int is_mouse_over_menu_item(int mouseX, int mouseY, int itemY,
+                                          int menuX, int menuWidth,
+                                          int itemHeight) {
   return mouseX >= menuX && mouseX <= menuX + menuWidth && mouseY >= itemY &&
          mouseY < itemY + itemHeight;
 }
 
-static inline void render_menu_item(SDL_Renderer *renderer, const char *text, int x, int y,
-                      int width, int height, SDL_Color bg_color,
-                      SDL_Color text_color, TTF_Font *font) {
+static inline void render_menu_item(SDL_Renderer *renderer, const char *text,
+                                    int x, int y, int width, int height,
+                                    SDL_Color bg_color, SDL_Color text_color,
+                                    TTF_Font *font) {
   SDL_Rect bg_rect = {x, y, width, height};
   SDL_SetRenderDrawColor(renderer, bg_color.r, bg_color.g, bg_color.b,
                          bg_color.a);
@@ -887,8 +896,7 @@ static inline void render_left_menu(SDL_Renderer *renderer, AppState *app) {
                    scroll_area_height / item_height, app->left_scroll_position);
 
   // Render visible content
-  SDL_Rect content_area = {0, y_offset,
-                           left_menu_width - scrollbar_width,
+  SDL_Rect content_area = {0, y_offset, left_menu_width - scrollbar_width,
                            scroll_area_height};
   SDL_RenderSetViewport(renderer, &content_area);
 
@@ -900,11 +908,12 @@ static inline void render_left_menu(SDL_Renderer *renderer, AppState *app) {
                app->graph->nodes[i].id, app->graph->nodes[i].label);
 
       // Calculate available width for text
-      int available_width = content_area.w - 10;  // Subtract padding
+      int available_width = content_area.w - 10; // Subtract padding
 
       // Truncate the text if it's too long
       char truncated_text[MAX_LABEL_LENGTH * 2];
-      int max_chars = available_width / (TTF_FontHeight(app->font_small) / 2);  // More accurate estimate
+      int max_chars = available_width / (TTF_FontHeight(app->font_small) /
+                                         2); // More accurate estimate
       if ((int)strlen(detail_text) > max_chars) {
         strncpy(truncated_text, detail_text, max_chars);
         truncated_text[max_chars] = '\0';
@@ -945,12 +954,11 @@ static inline void render_right_menu(SDL_Renderer *renderer, AppState *app) {
 
   render_label(renderer, app->search_bar.text, right_menu_x + 10, 10,
                app->font_small, COLOR_BLACK,
-               right_menu_width - 20 - search_icon_size );
+               right_menu_width - 20 - search_icon_size);
 
   // Render search icon
-  SDL_Rect search_icon_rect = {app->window_width - 
-                                   search_icon_size,
-                               5, search_icon_size, search_icon_size};
+  SDL_Rect search_icon_rect = {app->window_width - search_icon_size, 5,
+                               search_icon_size, search_icon_size};
   SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
   SDL_RenderFillRect(renderer, &search_icon_rect);
 
@@ -1025,16 +1033,20 @@ static inline void handle_input(SDL_Event *event, AppState *app) {
       int drag_distance = event->motion.y - app->drag_start_y;
       int scroll_area_height = app->window_height * 0.4 - 50;
       int max_scroll = app->visible_nodes_count * 20 - scroll_area_height;
-      app->left_scroll_position = app->drag_start_scroll + 
-        (drag_distance * max_scroll) / scroll_area_height;
-      app->left_scroll_position = fmax(0, fmin(app->left_scroll_position, max_scroll));
+      app->left_scroll_position =
+          app->drag_start_scroll +
+          (drag_distance * max_scroll) / scroll_area_height;
+      app->left_scroll_position =
+          fmax(0, fmin(app->left_scroll_position, max_scroll));
     } else if (app->is_dragging_right_scrollbar) {
       int drag_distance = event->motion.y - app->drag_start_y;
       int scroll_area_height = app->window_height - SEARCH_BAR_HEIGHT - 20;
       int max_scroll = app->visible_nodes_count * 20 - scroll_area_height;
-      app->right_scroll_position = app->drag_start_scroll + 
-        (drag_distance * max_scroll) / scroll_area_height;
-      app->right_scroll_position = fmax(0, fmin(app->right_scroll_position, max_scroll));
+      app->right_scroll_position =
+          app->drag_start_scroll +
+          (drag_distance * max_scroll) / scroll_area_height;
+      app->right_scroll_position =
+          fmax(0, fmin(app->right_scroll_position, max_scroll));
     } else {
       // Reset hover states
       app->hovered_node = -1;
@@ -1077,7 +1089,8 @@ static inline void handle_input(SDL_Event *event, AppState *app) {
                    (float)app->window_height / 2;
 
           if (sqrt(pow(app->mouse_position.x - nx, 2) +
-                   pow(app->mouse_position.y - ny, 2)) <= 5 * app->camera.zoom) {
+                   pow(app->mouse_position.y - ny, 2)) <=
+              5 * app->camera.zoom) {
             app->hovered_node = i;
             break;
           }
@@ -1108,9 +1121,10 @@ static inline void handle_input(SDL_Event *event, AppState *app) {
               (target->position.y + app->camera.position.y) * app->camera.zoom +
               (float)app->window_height / 2;
 
-          float d = fabs((y2 - y1) * app->mouse_position.x -
-                         (x2 - x1) * app->mouse_position.y + x2 * y1 - y2 * x1) /
-                    sqrt(pow(y2 - y1, 2) + pow(x2 - x1, 2));
+          float d =
+              fabs((y2 - y1) * app->mouse_position.x -
+                   (x2 - x1) * app->mouse_position.y + x2 * y1 - y2 * x1) /
+              sqrt(pow(y2 - y1, 2) + pow(x2 - x1, 2));
 
           if (d <= 5 * app->camera.zoom &&
               app->mouse_position.x >= fmin(x1, x2) - 5 * app->camera.zoom &&
@@ -1163,9 +1177,11 @@ static inline void handle_input(SDL_Event *event, AppState *app) {
       int x = event->button.x;
       int y = event->button.y;
 
-      if (x >= app->open_button.x && x <= app->open_button.x + app->open_button.w &&
-          y >= app->open_button.y && y <= app->open_button.y + app->open_button.h) {
-        const char* selected_file = handle_open_button_click();
+      if (x >= app->open_button.x &&
+          x <= app->open_button.x + app->open_button.w &&
+          y >= app->open_button.y &&
+          y <= app->open_button.y + app->open_button.h) {
+        const char *selected_file = handle_open_button_click();
         reinitialize_app(app, selected_file);
       } else if (x >= 10 && x <= left_menu_width - 10 && y >= 10 && y <= 40) {
         cycle_selection_mode(app);
@@ -1175,13 +1191,16 @@ static inline void handle_input(SDL_Event *event, AppState *app) {
       } else if (x >= app->window_width - right_menu_width) {
         int scrollbar_width = 15;
         // Check if clicking on right scrollbar
-        SDL_Rect right_scrollbar = render_scrollbar(NULL, app->window_width - scrollbar_width, SEARCH_BAR_HEIGHT + 10,
-                                                    scrollbar_width, app->window_height - SEARCH_BAR_HEIGHT - 20,
-                                                    app->visible_nodes_count * 20,
-                                                    app->window_height - SEARCH_BAR_HEIGHT - 20,
-                                                    app->right_scroll_position);
-        if (x >= right_scrollbar.x && x <= right_scrollbar.x + right_scrollbar.w &&
-            y >= right_scrollbar.y && y <= right_scrollbar.y + right_scrollbar.h) {
+        SDL_Rect right_scrollbar = render_scrollbar(
+            NULL, app->window_width - scrollbar_width, SEARCH_BAR_HEIGHT + 10,
+            scrollbar_width, app->window_height - SEARCH_BAR_HEIGHT - 20,
+            app->visible_nodes_count * 20,
+            app->window_height - SEARCH_BAR_HEIGHT - 20,
+            app->right_scroll_position);
+        if (x >= right_scrollbar.x &&
+            x <= right_scrollbar.x + right_scrollbar.w &&
+            y >= right_scrollbar.y &&
+            y <= right_scrollbar.y + right_scrollbar.h) {
           app->is_dragging_right_scrollbar = 1;
           app->drag_start_y = y;
           app->drag_start_scroll = app->right_scroll_position;
@@ -1200,15 +1219,15 @@ static inline void handle_input(SDL_Event *event, AppState *app) {
             }
           }
         }
-      } else if (x < left_menu_width && y > app->window_height - app->window_height * 0.4) {
+      } else if (x < left_menu_width &&
+                 y > app->window_height - app->window_height * 0.4) {
         int scrollbar_width = 15;
         // Check if clicking on left scrollbar
-        SDL_Rect left_scrollbar = render_scrollbar(NULL, left_menu_width - scrollbar_width,
-                                                   app->window_height - app->window_height * 0.4 + 50,
-                                                   scrollbar_width, app->window_height * 0.4 - 50,
-                                                   app->visible_nodes_count * 20,
-                                                   app->window_height * 0.4 - 50,
-                                                   app->left_scroll_position);
+        SDL_Rect left_scrollbar = render_scrollbar(
+            NULL, left_menu_width - scrollbar_width,
+            app->window_height - app->window_height * 0.4 + 50, scrollbar_width,
+            app->window_height * 0.4 - 50, app->visible_nodes_count * 20,
+            app->window_height * 0.4 - 50, app->left_scroll_position);
         if (x >= left_scrollbar.x && x <= left_scrollbar.x + left_scrollbar.w &&
             y >= left_scrollbar.y && y <= left_scrollbar.y + left_scrollbar.h) {
           app->is_dragging_left_scrollbar = 1;
@@ -1216,7 +1235,8 @@ static inline void handle_input(SDL_Event *event, AppState *app) {
           app->drag_start_scroll = app->left_scroll_position;
         } else if (x < left_menu_width - scrollbar_width) {
           // Clicking in the left menu's "Selected Objects" section
-          int y_offset = app->window_height - app->window_height * 0.4 + 50 - app->left_scroll_position;
+          int y_offset = app->window_height - app->window_height * 0.4 + 50 -
+                         app->left_scroll_position;
           for (int i = 0; i < app->graph->node_count; i++) {
             if (app->selected_nodes[i] && app->graph->nodes[i].visible) {
               if (y >= y_offset && y < y_offset + 20) {
@@ -1263,14 +1283,10 @@ static inline void handle_input(SDL_Event *event, AppState *app) {
     case SDLK_TAB:
       cycle_selection_mode(app);
       break;
-    case SDLK_TAB:
-      cycle_selection_mode(app);
-      break;
     case SDLK_PAGEUP:
     case SDLK_PAGEDOWN:
     case SDLK_HOME:
-    case SDLK_END:
-    {
+    case SDLK_END: {
       int scroll_amount = 0;
       int *scroll_position = NULL;
       int total_items = 0;
@@ -1281,7 +1297,8 @@ static inline void handle_input(SDL_Event *event, AppState *app) {
         total_items = app->visible_nodes_count;
         visible_items = app->nodes_per_page;
       } else if (app->mouse_position.x < left_menu_width &&
-                 app->mouse_position.y > app->window_height - app->window_height * 0.4) {
+                 app->mouse_position.y >
+                     app->window_height - app->window_height * 0.4) {
         scroll_position = &app->left_scroll_position;
         // Count selected and visible nodes for the left menu
         for (int i = 0; i < app->graph->node_count; i++) {
@@ -1289,32 +1306,33 @@ static inline void handle_input(SDL_Event *event, AppState *app) {
             total_items++;
           }
         }
-        visible_items = (app->window_height * 0.4 - 50) / 20; // Approximate number of visible items in left menu
+        // Approximate number of visible items in left menu
+        visible_items = (app->window_height * 0.4 - 50) / 20;
       }
 
       if (scroll_position) {
         switch (event->key.keysym.sym) {
-          case SDLK_PAGEUP:
-            scroll_amount = 1;
-            break;
-          case SDLK_PAGEDOWN:
-            scroll_amount = -1;
-            break;
-          case SDLK_HOME:
-            *scroll_position = 0;
-            break;
-          case SDLK_END:
-            *scroll_position = fmax(0, (total_items - visible_items) * 20);
-            break;
+        case SDLK_PAGEUP:
+          scroll_amount = 1;
+          break;
+        case SDLK_PAGEDOWN:
+          scroll_amount = -1;
+          break;
+        case SDLK_HOME:
+          *scroll_position = 0;
+          break;
+        case SDLK_END:
+          *scroll_position = fmax(0, (total_items - visible_items) * 20);
+          break;
         }
 
         if (scroll_amount != 0) {
           int scroll_pixels = scroll_amount * visible_items * 20;
-          handle_menu_scroll(scroll_position, scroll_pixels, total_items, visible_items, 20);
+          handle_menu_scroll(scroll_position, scroll_pixels, total_items,
+                             visible_items, 20);
         }
       }
-    }
-    break;
+    } break;
     }
     break;
 
@@ -1390,7 +1408,8 @@ static inline void initialize_app(AppState *app, const char *graph_file) {
   memset(app->search_bar.text, 0, MAX_SEARCH_LENGTH);
 
   int left_menu_width = get_left_menu_width(app->window_width);
-  app->open_button = (SDL_Rect){left_menu_width + 10, 5, OPEN_BUTTON_WIDTH, TOP_BAR_HEIGHT - 10};
+  app->open_button = (SDL_Rect){left_menu_width + 10, 5, OPEN_BUTTON_WIDTH,
+                                TOP_BAR_HEIGHT - 10};
   update_open_button_position(app);
 }
 
@@ -1406,50 +1425,49 @@ static inline void render_top_bar(SDL_Renderer *renderer, AppState *app) {
   // Render open button
   SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
   SDL_RenderFillRect(renderer, &app->open_button);
-  render_label(renderer, "Open", app->open_button.x + 5, app->open_button.y + 5, app->font_small, COLOR_WHITE, OPEN_BUTTON_WIDTH - 10);
+  render_label(renderer, "Open", app->open_button.x + 5, app->open_button.y + 5,
+               app->font_small, COLOR_WHITE, OPEN_BUTTON_WIDTH - 10);
 
   // Render "apaz's heap viewer" text
-  render_label(renderer, "apaz's heap viewer", left_menu_width + graph_width - 200, 10, app->font_small, (SDL_Color){0, 255, 0, 255}, 190);
+  render_label(renderer, "apaz's heap viewer",
+               left_menu_width + graph_width - 200, 10, app->font_small,
+               (SDL_Color){0, 255, 0, 255}, 190);
 }
 
 static inline void update_open_button_position(AppState *app) {
   int left_menu_width = get_left_menu_width(app->window_width);
-  app->open_button = (SDL_Rect){
-    left_menu_width + 10,
-    5,
-    OPEN_BUTTON_WIDTH,
-    TOP_BAR_HEIGHT - 10
-  };
+  app->open_button = (SDL_Rect){left_menu_width + 10, 5, OPEN_BUTTON_WIDTH,
+                                TOP_BAR_HEIGHT - 10};
 }
 
-static inline char* handle_open_button_click(void) {
-    static char selected_file[4096] = {0};
-    FILE *fp;
-    char command[256];
+static inline char *handle_open_button_click(void) {
+  static char selected_file[4096] = {0};
+  FILE *fp;
+  char command[256];
 
-    // Construct the command to run the filepicker binary
-    snprintf(command, sizeof(command), "./filepicker");
-    
-    fp = popen(command, "r");
-    if (fp == NULL) {
-        fprintf(stderr, "Failed to run filepicker command\n");
-        return NULL;
+  // Construct the command to run the filepicker binary
+  snprintf(command, sizeof(command), "./filepicker");
+
+  fp = popen(command, "r");
+  if (fp == NULL) {
+    fprintf(stderr, "Failed to run filepicker command\n");
+    return NULL;
+  }
+
+  if (fgets(selected_file, sizeof(selected_file) - 1, fp) != NULL) {
+    // Remove newline character if present
+    size_t len = strlen(selected_file);
+    if (len > 0 && selected_file[len - 1] == '\n') {
+      selected_file[len - 1] = '\0';
     }
+  } else {
+    // No file selected
+    selected_file[0] = '\0';
+  }
 
-    if (fgets(selected_file, sizeof(selected_file) - 1, fp) != NULL) {
-        // Remove newline character if present
-        size_t len = strlen(selected_file);
-        if (len > 0 && selected_file[len-1] == '\n') {
-            selected_file[len-1] = '\0';
-        }
-    } else {
-        // No file selected
-        selected_file[0] = '\0';
-    }
+  pclose(fp);
 
-    pclose(fp);
-
-    return selected_file[0] != '\0' ? selected_file : NULL;
+  return selected_file[0] != '\0' ? selected_file : NULL;
 }
 
 static inline void cleanup_app(AppState *app) {
@@ -1600,33 +1618,32 @@ int main(int argc, char **argv) {
 
   return run_graph_viewer(argv[1]);
 }
-
+#error "PYTHON_MODULE not defined"
 #else
 
-static PyObject* py_run_graph_viewer(PyObject* self, PyObject* args) {
-    const char* filename;
-    if (!PyArg_ParseTuple(args, "s", &filename)) {
-        return NULL;
-    }
-    
-    int result = run_graph_viewer(filename);
-    return PyLong_FromLong(result);
+static PyObject *py_run_graph_viewer(PyObject *self, PyObject *args) {
+  const char *filename;
+  if (!PyArg_ParseTuple(args, "s", &filename)) {
+    return NULL;
+  }
+
+  printf("Running graph viewer with file: %s\n", filename);
+  fflush(stdout);
+
+  int result = run_graph_viewer(filename);
+  return PyLong_FromLong(result);
 }
 
 static PyMethodDef GraphViewerMethods[] = {
-    {"run_graph_viewer", py_run_graph_viewer, METH_VARARGS, "Run the graph viewer with the given JSON file."},
-    {NULL, NULL, 0, NULL}
-};
+    {"run_graph_viewer", py_run_graph_viewer, METH_VARARGS,
+     "Run the graph viewer with the given JSON file."},
+    {NULL, NULL, 0, NULL}};
 
 static struct PyModuleDef graphviewermodule = {
-    PyModuleDef_HEAD_INIT,
-    "graph_viewer",
-    "Graph Viewer module",
-    -1,
-    GraphViewerMethods
-};
+    PyModuleDef_HEAD_INIT, "graph_viewer", "Graph Viewer module", -1,
+    GraphViewerMethods};
 
 PyMODINIT_FUNC PyInit_graph_viewer(void) {
-    return PyModule_Create(&graphviewermodule);
+  return PyModule_Create(&graphviewermodule);
 }
 #endif
