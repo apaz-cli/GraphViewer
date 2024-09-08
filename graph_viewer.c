@@ -152,7 +152,6 @@ static inline void cleanup_app(AppState *app);
 static inline void reinitialize_app(AppState *app, const char *graph_file);
 static inline int run_graph_viewer(const char *graph_file);
 
-// Utility macros
 #define LEFT_MENU_WIDTH(window_width) ((window_width) * 0.15)
 #define RIGHT_MENU_WIDTH(window_width) ((window_width) * 0.2)
 #define GRAPH_WIDTH(window_width) ((window_width) - LEFT_MENU_WIDTH(window_width) - RIGHT_MENU_WIDTH(window_width))
