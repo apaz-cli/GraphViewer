@@ -152,19 +152,10 @@ static inline void cleanup_app(AppState *app);
 static inline void reinitialize_app(AppState *app, const char *graph_file);
 static inline int run_graph_viewer(const char *graph_file);
 
-// Utility functions
-static inline int get_left_menu_width(int window_width) {
-  return window_width * 0.15;
-}
-
-static inline int get_right_menu_width(int window_width) {
-  return window_width * 0.2;
-}
-
-static inline int get_graph_width(int window_width) {
-  return window_width - get_left_menu_width(window_width) -
-         get_right_menu_width(window_width);
-}
+// Utility macros
+#define GET_LEFT_MENU_WIDTH(window_width) ((window_width) * 0.15)
+#define GET_RIGHT_MENU_WIDTH(window_width) ((window_width) * 0.2)
+#define GET_GRAPH_WIDTH(window_width) ((window_width) - GET_LEFT_MENU_WIDTH(window_width) - GET_RIGHT_MENU_WIDTH(window_width))
 
 // Implementation of core functions
 static inline GraphData *create_graph(int node_count, int edge_count) {
@@ -591,8 +582,8 @@ static inline void render_hover_label(SDL_Renderer *renderer, AppState *app,
 }
 
 static inline void render_graph(SDL_Renderer *renderer, AppState *app) {
-  int left_menu_width = get_left_menu_width(app->window_width);
-  int graph_width = get_graph_width(app->window_width);
+  int left_menu_width = GET_LEFT_MENU_WIDTH(app->window_width);
+  int graph_width = GET_GRAPH_WIDTH(app->window_width);
 
   // First pass: Render non-highlighted edges
   for (int i = 0; i < app->graph->edge_count; i++) {
@@ -956,7 +947,7 @@ static inline void render_left_menu(SDL_Renderer *renderer, AppState *app) {
 }
 
 static inline void render_right_menu(SDL_Renderer *renderer, AppState *app) {
-  int right_menu_width = get_right_menu_width(app->window_width);
+  int right_menu_width = GET_RIGHT_MENU_WIDTH(app->window_width);
   int right_menu_x = app->window_width - right_menu_width;
   int scrollbar_width = 15;
   int search_icon_size = SEARCH_BAR_HEIGHT;
