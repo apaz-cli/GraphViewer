@@ -827,7 +827,7 @@ static inline void render_menu_item(SDL_Renderer *renderer, const char *text,
 }
 
 static inline void render_left_menu(SDL_Renderer *renderer, AppState *app) {
-  int left_menu_width = get_left_menu_width(app->window_width);
+  int left_menu_width = LEFT_MENU_WIDTH(app->window_width);
   int detail_area_height = app->window_height * 0.4;
   int scrollbar_width = 15;
   int title_height = 50;
@@ -1032,8 +1032,8 @@ static inline void render_right_menu(SDL_Renderer *renderer, AppState *app) {
 
 static inline void handle_input(SDL_Event *event, AppState *app) {
   int left_menu_width = get_left_menu_width(app->window_width);
-  int right_menu_width = get_right_menu_width(app->window_width);
-  int graph_width = get_graph_width(app->window_width);
+  int right_menu_width = RIGHT_MENU_WIDTH(app->window_width);
+  int graph_width = GRAPH_WIDTH(app->window_width);
 
   switch (event->type) {
   case SDL_MOUSEMOTION:
@@ -1460,7 +1460,7 @@ static inline void render_top_bar(SDL_Renderer *renderer, AppState *app) {
 }
 
 static inline void update_open_button_position(AppState *app) {
-  int left_menu_width = get_left_menu_width(app->window_width);
+  int left_menu_width = LEFT_MENU_WIDTH(app->window_width);
   app->open_button = (SDL_Rect){left_menu_width + 10, 5, OPEN_BUTTON_WIDTH,
                                 TOP_BAR_HEIGHT - 10};
 }
