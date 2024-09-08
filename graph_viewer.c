@@ -18,13 +18,18 @@
 #include <string.h>
 
 #include "bell_wav.xxd"
-#include "yyjson.h"
 #include "lemon_ttf.xxd"
+#include "yyjson.h"
 
 // Debug macro
 #define DBG 1
-#define DEBUG_PRINT(...) do { if (DBG) fprintf(stderr, "[DEBUG] %s:%d: ", __func__, __LINE__); if (DBG) fprintf(stderr, __VA_ARGS__); } while (0)
-
+#define DEBUG_PRINT(...)                                                       \
+  do {                                                                         \
+    if (DBG)                                                                   \
+      fprintf(stderr, "[DEBUG] %s:%d: ", __func__, __LINE__);                  \
+    if (DBG)                                                                   \
+      fprintf(stderr, __VA_ARGS__);                                            \
+  } while (0)
 
 // Configuration constants
 #define FPS 60
@@ -199,7 +204,8 @@ static inline GraphData *load_graph(const char *filename) {
   yyjson_read_err err;
   yyjson_doc *doc = yyjson_read_file(filename, flg, NULL, &err);
   if (!doc) {
-    DEBUG_PRINT("Error reading JSON file: %s at position %zu\n", err.msg, err.pos);
+    DEBUG_PRINT("Error reading JSON file: %s at position %zu\n", err.msg,
+                err.pos);
     return create_graph(0, 0);
   }
 
@@ -247,11 +253,14 @@ static inline GraphData *load_graph(const char *filename) {
       continue;
     }
     graph->nodes[idx].id = yyjson_get_int(id);
-    graph->nodes[idx].position.x = (rand() % (2 * RAND_XY_INIT_RANGE)) - RAND_XY_INIT_RANGE;
-    graph->nodes[idx].position.y = (rand() % (2 * RAND_XY_INIT_RANGE)) - RAND_XY_INIT_RANGE;
+    graph->nodes[idx].position.x =
+        (rand() % (2 * RAND_XY_INIT_RANGE)) - RAND_XY_INIT_RANGE;
+    graph->nodes[idx].position.y =
+        (rand() % (2 * RAND_XY_INIT_RANGE)) - RAND_XY_INIT_RANGE;
     graph->nodes[idx].label = yyjson_get_str(label);
     graph->nodes[idx].visible = 1;
-    DEBUG_PRINT("Node %zu: id=%d, label=%s\n", idx, graph->nodes[idx].id, graph->nodes[idx].label);
+    DEBUG_PRINT("Node %zu: id=%d, label=%s\n", idx, graph->nodes[idx].id,
+                graph->nodes[idx].label);
     idx++;
   }
 
@@ -264,14 +273,17 @@ static inline GraphData *load_graph(const char *filename) {
     yyjson_val *source = yyjson_obj_get(edge, "source");
     yyjson_val *target = yyjson_obj_get(edge, "target");
     yyjson_val *label = yyjson_obj_get(edge, "label");
-    if (!yyjson_is_int(source) || !yyjson_is_int(target) || !yyjson_is_str(label)) {
+    if (!yyjson_is_int(source) || !yyjson_is_int(target) ||
+        !yyjson_is_str(label)) {
       DEBUG_PRINT("Invalid edge data\n");
       continue;
     }
     graph->edges[idx].source = yyjson_get_int(source);
     graph->edges[idx].target = yyjson_get_int(target);
     graph->edges[idx].label = yyjson_get_str(label);
-    DEBUG_PRINT("Edge %zu: source=%d, target=%d, label=%s\n", idx, graph->edges[idx].source, graph->edges[idx].target, graph->edges[idx].label);
+    DEBUG_PRINT("Edge %zu: source=%d, target=%d, label=%s\n", idx,
+                graph->edges[idx].source, graph->edges[idx].target,
+                graph->edges[idx].label);
     idx++;
   }
 
@@ -1365,7 +1377,8 @@ static inline void initialize_app(AppState *app, const char *graph_file) {
     fprintf(stderr, "Failed to load graph\n");
     exit(1);
   }
-  DEBUG_PRINT("Graph loaded successfully. Node count: %d, Edge count: %d\n", app->graph->node_count, app->graph->edge_count);
+  DEBUG_PRINT("Graph loaded successfully. Node count: %d, Edge count: %d\n",
+              app->graph->node_count, app->graph->edge_count);
 
   DEBUG_PRINT("Initializing camera\n");
   app->camera.zoom = 1.0f;
@@ -1382,7 +1395,8 @@ static inline void initialize_app(AppState *app, const char *graph_file) {
   app->window_width = dm.w / 2;
   app->window_height = dm.h / 2;
   app->nodes_per_page = (app->window_height - SEARCH_BAR_HEIGHT - 20) / 20;
-  DEBUG_PRINT("Window size set to %dx%d, Nodes per page: %d\n", app->window_width, app->window_height, app->nodes_per_page);
+  DEBUG_PRINT("Window size set to %dx%d, Nodes per page: %d\n",
+              app->window_width, app->window_height, app->nodes_per_page);
 
   DEBUG_PRINT("Allocating memory for selected nodes\n");
   app->selected_nodes = calloc(app->graph->node_count, sizeof(int));
@@ -1595,22 +1609,23 @@ static inline int run_graph_viewer(const char *graph_file) {
   }
 
   SDL_Event event;
-  int quit = 0;
   Uint32 frameStart;
   int frameTime;
+  int quit = 0;
 
   DEBUG_PRINT("Entering main loop\n");
-  while (!quit) {
+  while (1) {
     frameStart = SDL_GetTicks();
 
     DEBUG_PRINT("Handling events\n");
-    while (SDL_PollEvent(&event)) {
-      if (event.type == SDL_QUIT) {
+    while (SDL_PollEvent(&event))
+      if (event.type == SDL_QUIT)
         quit = 1;
-      } else {
+      else
         handle_input(&event, &app);
-      }
-    }
+
+    if (quit)
+      break;
 
     DEBUG_PRINT("Clearing renderer\n");
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -1634,7 +1649,7 @@ static inline int run_graph_viewer(const char *graph_file) {
     }
   }
 
-  DEBUG_PRINT("Cleaning up\n");
+  DEBUG_PRINT("Cleaning up.\n");
   Mix_FreeChunk(sound);
   Mix_CloseAudio();
   cleanup_app(&app);
@@ -1657,7 +1672,7 @@ int main(int argc, char **argv) {
 
   return run_graph_viewer(argv[1]);
 }
-#error "PYTHON_MODULE not defined"
+
 #else
 
 static PyObject *py_run_graph_viewer(PyObject *self, PyObject *args) {
