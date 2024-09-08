@@ -11,9 +11,23 @@ def generate_object_graph(gc_objects: list[object]) -> dict:
 
     import inspect
     import sys
+    import abc
+    import functools
     from functools import partial
+    import itertools
+    import contextlib
+    import collections
+    import reprlib
+    import operator
 
     _not_found = object()
+
+    def module_types(module: types.ModuleType) -> set[int]:
+        return {id(value) for value in vars(module).values() if type(value) is type}
+
+    known_modules = [functools, contextlib, collections, itertools, reprlib, operator]
+    known_module_types = set(itertools.chain(*[module_types(m) for m in known_modules]))
+
     globals_id_to_name: dict[int, str] = {
         id(mod.__dict__): mod.__name__
         for mod in sys.modules.values()
@@ -46,9 +60,13 @@ def generate_object_graph(gc_objects: list[object]) -> dict:
             )
         if isinstance(obj, types.MethodType):
             return str(obj)
+
         if isinstance(obj, partial):
             func = obj.func
             return f"<partial wrapping {object_to_string(func, id(func))}>"
+
+        if isinstance(obj, types.FrameType):
+            return f"<frame {obj.f_code.co_name} at {obj.f_code.co_filename}>"
 
         if isinstance(obj, types.ModuleType):
             f = getattr(obj, "__file__", None)
@@ -64,13 +82,41 @@ def generate_object_graph(gc_objects: list[object]) -> dict:
 
         if isinstance(obj, (list, tuple)):
             return str(obj)
-        if isinstance(obj, dict):
+
+        if isinstance(obj, types.CodeType):
+            return f"<code for {obj.co_name} at {obj.co_filename}:{obj.co_firstlineno}>"
+
+        if isinstance(obj, (dict, types.MappingProxyType)):
             if (mod_name := globals_id_to_name.get(_id, _not_found)) is not _not_found:
                 return f"<module_globals {mod_name}>"
             return str(obj)
 
+        if isinstance(obj, ReferenceType):
+            return f"<weakref to {object_to_string(obj(), id(obj()))}>"
+
+        if isinstance(obj, types.WrapperDescriptorType):
+            return str(obj)
+
+        if isinstance(obj, types.MethodDescriptorType):
+            return str(obj)
+
+        if isinstance(obj, types.BuiltinFunctionType):
+            return str(obj)
+
+        if isinstance(obj, abc.ABCMeta):
+            return str(obj)
+
+        if id(obj) in known_module_types:
+            return str(obj)
+
         if hasattr(obj, "__qualname__"):
             return obj.__qualname__
+
+        if hasattr(obj, "__call__") and not hasattr(obj, "__code__"):
+            print(obj)
+            print(type(obj))
+            print()
+
         if hasattr(obj, "__name__"):
             if obj.__name__ in dir(__builtins__) and obj is getattr(
                 __builtins__, obj.__name__
@@ -109,7 +155,9 @@ def generate_object_graph(gc_objects: list[object]) -> dict:
 
     for obj in gc_objects:
         obj_id = objids[id(obj)]
-        members = inspect.getmembers(obj)  # (name, value)
+
+        # Calling getmembers() instead raises ValueError for empty cell objects.
+        members = inspect.getmembers_static(obj)  # (name, value)
         member_ids = {id(v) for _, v in members}
 
         referents = list(gc.get_referents(obj))
@@ -153,9 +201,6 @@ def generate_object_graph(gc_objects: list[object]) -> dict:
                 }
             )
 
-    for node in nodes:
-        print(node["label"])
-
     return {"nodes": nodes, "edges": edges}
 
 
@@ -189,9 +234,6 @@ def collect_to_json(target: TargetType = None, filename: Union[str, None] = None
                     ]
                     objects_to_check.extend(referrers)
 
-    print(f"Found {len(gc_objects)} objects in the GC")
-    print(gc_objects)
-
     import json
     import tempfile
 
@@ -215,6 +257,7 @@ def view_json(filename: str):
 
     graph_viewer.run_graph_viewer(filename)
 
+
 def collect_and_view(
     target: TargetType = None,
     output_file: Union[str, None] = None,
@@ -228,7 +271,9 @@ def collect_and_view(
     try:
         import graph_viewer
 
+        print("Opening graph viewer...")
         graph_viewer.run_graph_viewer(json_file)
+        print("Done.")
     except ImportError:
         import sys
 
@@ -238,3 +283,6 @@ def collect_and_view(
         )
         return
 
+
+if __name__ == "__main__":
+    collect_and_view()

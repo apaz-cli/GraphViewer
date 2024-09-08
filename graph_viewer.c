@@ -1030,7 +1030,7 @@ static inline void render_right_menu(SDL_Renderer *renderer, AppState *app) {
 }
 
 static inline void handle_input(SDL_Event *event, AppState *app) {
-  int left_menu_width = get_left_menu_width(app->window_width);
+  int left_menu_width = LEFT_MENU_WIDTH(app->window_width);
   int right_menu_width = RIGHT_MENU_WIDTH(app->window_width);
   int graph_width = GRAPH_WIDTH(app->window_width);
 
@@ -1150,8 +1150,8 @@ static inline void handle_input(SDL_Event *event, AppState *app) {
 
       if (event->motion.state & SDL_BUTTON_LMASK) {
         // Only move the graph if the mouse is in the graph area
-        int left_menu_width = get_left_menu_width(app->window_width);
-        int right_menu_width = get_right_menu_width(app->window_width);
+        int left_menu_width = LEFT_MENU_WIDTH(app->window_width);
+        int right_menu_width = RIGHT_MENU_WIDTH(app->window_width);
         if (app->mouse_position.x > left_menu_width &&
             app->mouse_position.x < app->window_width - right_menu_width &&
             app->mouse_position.y > TOP_BAR_HEIGHT) {
@@ -1429,7 +1429,7 @@ static inline void initialize_app(AppState *app, const char *graph_file) {
 
   memset(app->search_bar.text, 0, MAX_SEARCH_LENGTH);
 
-  int left_menu_width = get_left_menu_width(app->window_width);
+  int left_menu_width = LEFT_MENU_WIDTH(app->window_width);
   app->open_button = (SDL_Rect){left_menu_width + 10, 5, OPEN_BUTTON_WIDTH,
                                 TOP_BAR_HEIGHT - 10};
   update_open_button_position(app);
@@ -1438,8 +1438,8 @@ static inline void initialize_app(AppState *app, const char *graph_file) {
 }
 
 static inline void render_top_bar(SDL_Renderer *renderer, AppState *app) {
-  int left_menu_width = get_left_menu_width(app->window_width);
-  int graph_width = get_graph_width(app->window_width);
+  int left_menu_width = LEFT_MENU_WIDTH(app->window_width);
+  int graph_width = GRAPH_WIDTH(app->window_width);
 
   // Render top bar background
   SDL_Rect top_bar_rect = {left_menu_width, 0, graph_width, TOP_BAR_HEIGHT};
