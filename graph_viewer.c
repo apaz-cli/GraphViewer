@@ -61,13 +61,13 @@ typedef struct {
   int id;
   int visible;
   Vec2f position;
-  char *label;
+  const char *label;
 } GraphNode;
 
 typedef struct {
   int source;
   int target;
-  char *label;
+  const char *label;
 } GraphEdge;
 
 typedef struct {
